@@ -1,0 +1,6 @@
+{
+  "name": "Al Maali Clinics",
+  "description": "عيادات المعالي - موقع تعريفي فخم لعيادة أسنان راقية - تجربة طبية فاخرة وموثوقة",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

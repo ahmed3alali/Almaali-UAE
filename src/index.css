@@ -1,0 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Almarai", sans-serif;
+  --font-sans: "Almarai", sans-serif;
+  --font-mono: "Almarai", monospace;
+}
+
+
