@@ -12,6 +12,7 @@ export interface Service {
   description: { ar: string; en: string };
   details: { ar: string[]; en: string[] };
   duration: { ar: string; en: string };
+  image: string;
 }
 
 export interface Doctor {
@@ -31,12 +32,25 @@ export interface Testimonial {
   comment: { ar: string; en: string };
   treatment: { ar: string; en: string };
   date: string;
+  image: string;
+}
+
+/** About / “Our vision” dual images after the hero */
+export interface VisionImages {
+  imagePrimary: string;
+  imageSecondary: string;
+}
+
+export interface GalleryCategory {
+  id: string;
+  label: { ar: string; en: string };
 }
 
 export interface GalleryItem {
   id: string;
   title: { ar: string; en: string };
-  category: 'clinic' | 'cases';
+  /** Category id — managed via gallery categories CRUD */
+  category: string;
   image: string;
   description?: { ar: string; en: string };
 }

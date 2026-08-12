@@ -9,6 +9,7 @@ import { Language } from '../types';
 import { TRANSLATIONS } from '../data';
 import { IMAGES, WHATSAPP } from '../lib/images';
 import { cn } from '../lib/utils';
+import { localeBlogPath, localeHome } from '../lib/routing';
 
 interface HeaderProps {
   lang: Language;
@@ -50,15 +51,20 @@ export default function Header({ lang, setLang, activeSection, currentView }: He
   const go = (id: string) => {
     setOpen(false);
     if (id === 'blog') {
-      window.location.hash = '#blog';
+      window.history.pushState(null, '', localeBlogPath(lang));
+      window.dispatchEvent(new PopStateEvent('popstate'));
       return;
     }
     if (currentView !== 'main') {
-      window.history.pushState(null, '', '/');
+      window.history.pushState(null, '', localeHome(lang));
       window.dispatchEvent(new PopStateEvent('popstate'));
       setTimeout(() => {
         document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
       }, 80);
+      return;
+    }
+    if (id === 'home') {
+      document.getElementById('home')?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -80,7 +86,6 @@ export default function Header({ lang, setLang, activeSection, currentView }: He
         )}
       >
         <nav className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between gap-6 px-5 md:h-[80px] md:px-8 lg:px-12">
-          {/* Brand — quiet, clinical */}
           <button
             type="button"
             onClick={() => go('home')}
@@ -112,7 +117,6 @@ export default function Header({ lang, setLang, activeSection, currentView }: He
             </span>
           </button>
 
-          {/* Links — desktop, no ornaments */}
           <ul className="hidden items-center gap-8 lg:flex xl:gap-10">
             {NAV.map((item) => {
               const active =
@@ -149,11 +153,14 @@ export default function Header({ lang, setLang, activeSection, currentView }: He
             })}
           </ul>
 
-          {/* Right actions */}
           <div className="flex items-center gap-3 md:gap-4">
-            <button
-              type="button"
-              onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}
+            <a
+              href={lang === 'ar' ? localeHome('en') : localeHome('ar')}
+              hrefLang={lang === 'ar' ? 'en' : 'ar'}
+              onClick={(e) => {
+                e.preventDefault();
+                setLang(lang === 'ar' ? 'en' : 'ar');
+              }}
               className={cn(
                 'text-[12px] font-medium tracking-wide transition-colors',
                 overHero || open
@@ -162,7 +169,7 @@ export default function Header({ lang, setLang, activeSection, currentView }: He
               )}
             >
               {t.langSwitch}
-            </button>
+            </a>
 
             <a
               href={WHATSAPP.href}
@@ -208,7 +215,6 @@ export default function Header({ lang, setLang, activeSection, currentView }: He
         </nav>
       </header>
 
-      {/* Mobile — calm full panel, medical restraint */}
       <AnimatePresence>
         {open && (
           <motion.div

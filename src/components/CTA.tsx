@@ -70,8 +70,8 @@ export default function CTA({ lang }: CTAProps) {
               variant="whatsapp"
               className="w-full min-w-[240px] !px-8 !py-5 !text-base"
             >
-              <MessageCircle size={20} />
-              {lang === 'ar' ? 'راسلنا على واتساب' : 'Message us on WhatsApp'}
+              <MessageCircle size={20} className="shrink-0" aria-hidden />
+              <span>{lang === 'ar' ? 'راسلنا على واتساب' : 'Message us on WhatsApp'}</span>
             </MagneticButton>
             <p className="mt-4 text-center text-xs text-bg-light/45 lg:text-end">
               {WHATSAPP.phoneDisplay} · {t.bookingHoursValue}

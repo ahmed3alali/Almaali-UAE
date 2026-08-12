@@ -1,4 +1,4 @@
-import type { BlogPost, Doctor, GalleryItem } from '../types';
+import type { BlogPost, Doctor, GalleryItem, Service, Testimonial, VisionImages } from '../types';
 
 export type FieldErrors = Record<string, string>;
 
@@ -17,8 +17,6 @@ export function validateBlog(b: Partial<BlogPost>, isRtl: boolean): FieldErrors 
   const e: FieldErrors = {};
   if (!b.title?.ar?.trim()) e['title.ar'] = isRtl ? 'العنوان بالعربية مطلوب' : 'Arabic title required';
   if (!b.title?.en?.trim()) e['title.en'] = isRtl ? 'العنوان بالإنجليزية مطلوب' : 'English title required';
-  if (!b.excerpt?.ar?.trim()) e['excerpt.ar'] = isRtl ? 'النبذة بالعربية مطلوبة' : 'Arabic excerpt required';
-  if (!b.excerpt?.en?.trim()) e['excerpt.en'] = isRtl ? 'النبذة بالإنجليزية مطلوبة' : 'English excerpt required';
   if (!b.content?.ar?.trim() || (b.content?.ar?.trim().length || 0) < 40) {
     e['content.ar'] = isRtl ? 'المحتوى بالعربية قصير جداً (٤٠ حرفاً على الأقل)' : 'Arabic content too short (min 40 chars)';
   }
@@ -31,14 +29,30 @@ export function validateBlog(b: Partial<BlogPost>, isRtl: boolean): FieldErrors 
   return e;
 }
 
-export function validateGallery(g: Partial<GalleryItem>, isRtl: boolean): FieldErrors {
+export function validateGallery(
+  g: Partial<GalleryItem>,
+  isRtl: boolean,
+  categoryIds?: string[]
+): FieldErrors {
   const e: FieldErrors = {};
   if (!g.title?.ar?.trim()) e['title.ar'] = isRtl ? 'العنوان بالعربية مطلوب' : 'Arabic title required';
   if (!g.title?.en?.trim()) e['title.en'] = isRtl ? 'العنوان بالإنجليزية مطلوب' : 'English title required';
-  if (!g.category || !['clinic', 'cases'].includes(g.category)) {
-    e.category = isRtl ? 'اختر تصنيفاً صالحاً' : 'Choose a valid category';
+  if (!g.category?.trim()) {
+    e.category = isRtl ? 'اختر تصنيفاً' : 'Choose a category';
+  } else if (categoryIds && categoryIds.length > 0 && !categoryIds.includes(g.category)) {
+    e.category = isRtl ? 'تصنيف غير صالح' : 'Invalid category';
   }
   if (!g.image?.trim()) e.image = isRtl ? 'الصورة مطلوبة' : 'Image is required';
+  return e;
+}
+
+export function validateGalleryCategory(
+  c: Partial<{ id: string; label: { ar?: string; en?: string } }>,
+  isRtl: boolean
+): FieldErrors {
+  const e: FieldErrors = {};
+  if (!c.label?.ar?.trim()) e['label.ar'] = isRtl ? 'الاسم بالعربية مطلوب' : 'Arabic label required';
+  if (!c.label?.en?.trim()) e['label.en'] = isRtl ? 'الاسم بالإنجليزية مطلوب' : 'English label required';
   return e;
 }
 
@@ -46,17 +60,41 @@ export function validateDoctor(d: Partial<Doctor>, isRtl: boolean): FieldErrors 
   const e: FieldErrors = {};
   if (!d.name?.ar?.trim()) e['name.ar'] = isRtl ? 'الاسم بالعربية مطلوب' : 'Arabic name required';
   if (!d.name?.en?.trim()) e['name.en'] = isRtl ? 'الاسم بالإنجليزية مطلوب' : 'English name required';
-  if (!d.role?.ar?.trim()) e['role.ar'] = isRtl ? 'التخصص بالعربية مطلوب' : 'Arabic role required';
-  if (!d.role?.en?.trim()) e['role.en'] = isRtl ? 'التخصص بالإنجليزية مطلوب' : 'English role required';
-  if (!d.bio?.ar?.trim() || (d.bio?.ar?.trim().length || 0) < 20) {
-    e['bio.ar'] = isRtl ? 'السيرة بالعربية قصيرة جداً' : 'Arabic bio too short';
-  }
-  if (!d.bio?.en?.trim() || (d.bio?.en?.trim().length || 0) < 20) {
-    e['bio.en'] = isRtl ? 'السيرة بالإنجليزية قصيرة جداً' : 'English bio too short';
-  }
-  if (!d.education?.ar?.trim()) e['education.ar'] = isRtl ? 'التعليم بالعربية مطلوب' : 'Arabic education required';
-  if (!d.education?.en?.trim()) e['education.en'] = isRtl ? 'التعليم بالإنجليزية مطلوب' : 'English education required';
   if (!d.image?.trim()) e.image = isRtl ? 'صورة الطبيب مطلوبة' : 'Doctor photo is required';
+  return e;
+}
+
+export function validateService(s: Partial<Service>, isRtl: boolean): FieldErrors {
+  const e: FieldErrors = {};
+  if (!s.title?.ar?.trim()) e['title.ar'] = isRtl ? 'العنوان بالعربية مطلوب' : 'Arabic title required';
+  if (!s.title?.en?.trim()) e['title.en'] = isRtl ? 'العنوان بالإنجليزية مطلوب' : 'English title required';
+  if (!s.description?.ar?.trim()) e['description.ar'] = isRtl ? 'الوصف بالعربية مطلوب' : 'Arabic description required';
+  if (!s.description?.en?.trim()) e['description.en'] = isRtl ? 'الوصف بالإنجليزية مطلوب' : 'English description required';
+  if (!s.image?.trim()) e.image = isRtl ? 'صورة الخدمة مطلوبة' : 'Service image is required';
+  return e;
+}
+
+export function validateTestimonial(t: Partial<Testimonial>, isRtl: boolean): FieldErrors {
+  const e: FieldErrors = {};
+  if (!t.name?.ar?.trim()) e['name.ar'] = isRtl ? 'الاسم بالعربية مطلوب' : 'Arabic name required';
+  if (!t.name?.en?.trim()) e['name.en'] = isRtl ? 'الاسم بالإنجليزية مطلوب' : 'English name required';
+  if (!t.comment?.ar?.trim()) e['comment.ar'] = isRtl ? 'التعليق بالعربية مطلوب' : 'Arabic comment required';
+  if (!t.comment?.en?.trim()) e['comment.en'] = isRtl ? 'التعليق بالإنجليزية مطلوب' : 'English comment required';
+  const rating = Number(t.rating);
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    e.rating = isRtl ? 'التقييم من ١ إلى ٥' : 'Rating must be 1–5';
+  }
+  return e;
+}
+
+export function validateVisionImages(v: Partial<VisionImages>, isRtl: boolean): FieldErrors {
+  const e: FieldErrors = {};
+  if (!v.imagePrimary?.trim()) {
+    e.imagePrimary = isRtl ? 'الصورة الرئيسية مطلوبة' : 'Primary image is required';
+  }
+  if (!v.imageSecondary?.trim()) {
+    e.imageSecondary = isRtl ? 'الصورة الثانوية مطلوبة' : 'Secondary image is required';
+  }
   return e;
 }
 

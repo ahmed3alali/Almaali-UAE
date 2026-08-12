@@ -8,6 +8,9 @@ const CACHE_KEYS = {
   blogs: 'almaali_session_blogs',
   gallery: 'almaali_session_gallery',
   doctors: 'almaali_session_doctors',
+  galleryCategories: 'almaali_session_gallery_categories',
+  services: 'almaali_session_services',
+  testimonials: 'almaali_session_testimonials',
 } as const;
 
 const LOCAL_EDIT_AT = 'almaali_local_edit_at';

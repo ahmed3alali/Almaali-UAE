@@ -13,6 +13,8 @@ import SafeImage from './ui/SafeImage';
 import ContentStatus from './ui/ContentStatus';
 import { IMAGES, resolveImage, WHATSAPP } from '../lib/images';
 import { scrollToTop } from '../lib/scroll';
+import { localeBlogPath, localeHome } from '../lib/routing';
+import { localeText } from '../lib/i18n';
 
 interface BlogProps {
   lang: Language;
@@ -42,22 +44,22 @@ function PostCard({
       <div className="relative aspect-[16/10] overflow-hidden bg-bg-warm">
         <SafeImage
           src={resolveImage(post.image, IMAGES.placeholders.blog)}
-          alt={post.title[lang]}
+          alt={localeText(post.title, lang)}
           className="h-full w-full transition duration-700 ease-[var(--ease-out-expo)] group-hover:scale-[1.03] img-grade"
         />
       </div>
       <div className="flex grow flex-col p-6 md:p-7">
         <p className="text-[11px] font-medium tracking-wide text-bronze">
-          {post.category[lang]} · {post.readTime[lang]}
+          {localeText(post.category, lang)} · {localeText(post.readTime, lang)}
         </p>
         <h3 className="mt-3 font-display text-2xl text-ink transition group-hover:text-bronze">
-          {post.title[lang]}
+          {localeText(post.title, lang)}
         </h3>
         <p className="mt-3 line-clamp-3 grow text-sm leading-relaxed text-muted">
-          {post.excerpt[lang]}
+          {localeText(post.excerpt, lang)}
         </p>
         <div className="mt-6 flex items-center justify-between border-t border-ink/8 pt-4 text-[12px] text-ink-soft">
-          <span>{post.author[lang]}</span>
+          <span>{localeText(post.author, lang)}</span>
           <span className="inline-flex items-center gap-1.5 text-bronze">
             {t.blogReadMore}
             {isRtl ? <ArrowLeft size={13} /> : <ArrowRight size={13} />}
@@ -126,19 +128,20 @@ export default function Blog({
 
   const handleNavigateToPost = (postId: string) => {
     scrollToTop();
-    window.location.hash = `#blog-${postId}`;
+    window.history.pushState(null, '', localeBlogPath(lang, postId));
+    window.dispatchEvent(new PopStateEvent('popstate'));
     requestAnimationFrame(() => scrollToTop());
   };
 
   const handleNavigateToGrid = () => {
     scrollToTop();
-    window.location.hash = '#blog';
+    window.history.pushState(null, '', localeBlogPath(lang));
+    window.dispatchEvent(new PopStateEvent('popstate'));
     requestAnimationFrame(() => scrollToTop());
   };
 
   const handleNavigateToHome = () => {
-    window.location.hash = '';
-    window.history.pushState(null, '', '/');
+    window.history.pushState(null, '', localeHome(lang));
     window.dispatchEvent(new PopStateEvent('popstate'));
     scrollToTop();
   };
@@ -258,7 +261,10 @@ export default function Blog({
       );
     }
 
-    const content = loadedContent?.[lang] || activePost.content?.[lang] || '';
+    const content =
+      localeText(loadedContent, lang) ||
+      localeText(activePost.content, lang) ||
+      '';
     const others = displayBlog.filter((p) => p.id !== activePost.id).slice(0, 2);
 
     return (
@@ -285,15 +291,15 @@ export default function Blog({
 
             <div className="mx-auto max-w-3xl">
               <p className="text-[12px] font-medium tracking-wide text-bronze">
-                {activePost.category[lang]}
+                {localeText(activePost.category, lang)}
               </p>
               <h1 className="mt-4 font-display text-display-sm text-ink text-balance">
-                {activePost.title[lang]}
+                {localeText(activePost.title, lang)}
               </h1>
               <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-muted">
-                <span>{activePost.author[lang]}</span>
-                <span>{activePost.date[lang]}</span>
-                <span>{activePost.readTime[lang]}</span>
+                <span>{localeText(activePost.author, lang)}</span>
+                <span>{localeText(activePost.date, lang)}</span>
+                <span>{localeText(activePost.readTime, lang)}</span>
               </div>
             </div>
           </div>
@@ -303,14 +309,14 @@ export default function Blog({
           <div className="mx-auto mt-10 max-w-3xl overflow-hidden md:mt-14">
             <SafeImage
               src={resolveImage(activePost.image, IMAGES.placeholders.blog)}
-              alt={activePost.title[lang]}
+              alt={localeText(activePost.title, lang)}
               className="aspect-[16/9] w-full img-grade"
             />
           </div>
 
           <article className="mx-auto mt-10 max-w-2xl md:mt-14">
             <p className="border-s-2 border-bronze ps-5 text-lg leading-relaxed text-ink-soft md:text-xl">
-              {activePost.excerpt[lang]}
+              {localeText(activePost.excerpt, lang)}
             </p>
 
             <div className="mt-10 space-y-6 text-base leading-[1.9] text-ink-soft md:text-lg">

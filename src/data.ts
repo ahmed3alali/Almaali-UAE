@@ -11,10 +11,13 @@ export const TRANSLATIONS = {
     brandName: "عيادات المعالي",
     brandSubtitle: "فن نحت الابتسامة الفاخرة",
     tagline: "حيث تجتمع الدقة متناهية الصغر مع الرفاهية المطلقة",
+    seoTitle: "عيادات المعالي | طب أسنان فاخر في الإمارات",
+    seoDescription:
+      "عيادات المعالي — حيث تجتمع الدقة متناهية الصغر مع الرفاهية المطلقة. تجميل وزراعة وتقويم بخبرة استثنائية.",
 
     // Navigation
     navHome: "الرئيسية",
-    navAbout: "الفلسفة",
+    navAbout: "رؤيتنا",
     navServices: "التخصصات",
     navTeam: "الفريق الطبي",
     navGallery: "المعرض",
@@ -105,11 +108,11 @@ export const TRANSLATIONS = {
     bookingInfoTitle: "معلومات التواصل والاستقبال",
     bookingInfoDesc: "نحن هنا لاستقبالك كضيف استثنائي. يُرجى التكرم بتنسيق موعدك مسبقًا لضمان توفير كامل الخصوصية والراحة.",
     bookingAddress: "العنوان:",
-    bookingAddressValue: "طريق الملك عبد العزيز، حي الروضة الفاخر، دبي الإمارات",
+    bookingAddressValue: "العين ، المعترض ، شارع العناجيج",
     bookingPhone: "هاتف الاستقبال:",
-    bookingPhoneValue: "+966 11 488 9000",
+    bookingPhoneValue: "+971 52 164 5368",
     bookingEmail: "البريد الإلكتروني:",
-    bookingEmailValue: "concierge@almaali.com",
+    bookingEmailValue: "info@alamaali.ae",
     bookingHours: "أوقات الاستقبال:",
     bookingHoursValue: "السبت - الخميس: 10:00 صباحًا - 9:00 مساءً",
 
@@ -123,10 +126,13 @@ export const TRANSLATIONS = {
     brandName: "Al Maali Clinics",
     brandSubtitle: "The Art of Luxurious Smiles",
     tagline: "Where Microscopic Precision Meets Absolute Luxury",
+    seoTitle: "Al Maali Clinics | Luxury Dentistry in the UAE",
+    seoDescription:
+      "Al Maali Clinics — where microscopic precision meets absolute luxury. Cosmetic dentistry, implants, and clear aligners in a boutique medical sanctuary.",
 
     // Navigation
     navHome: "Home",
-    navAbout: "Philosophy",
+    navAbout: "Our vision",
     navServices: "Specialties",
     navTeam: "Medical Team",
     navGallery: "Gallery",
@@ -219,9 +225,9 @@ export const TRANSLATIONS = {
     bookingAddress: "Address:",
     bookingAddressValue: "King Abdulaziz Road, Al-Rawdah Luxury District, Riyadh, Kingdom of Saudi Arabia",
     bookingPhone: "Reception Line:",
-    bookingPhoneValue: "+966 11 488 9000",
+    bookingPhoneValue: "+971 52 164 5368",
     bookingEmail: "Concierge Email:",
-    bookingEmailValue: "concierge@almaali.com",
+    bookingEmailValue: "info@alamaali.ae",
     bookingHours: "reception Hours:",
     bookingHoursValue: "Saturday - Thursday: 10:00 AM - 9:00 PM",
 
@@ -262,7 +268,8 @@ export const SERVICES: Service[] = [
     duration: {
       ar: "جلستان إلى ٣ جلسات عمل",
       en: "2 to 3 sessions"
-    }
+    },
+    image: STOCK.veneers
   },
   {
     id: "micro-implants",
@@ -292,7 +299,8 @@ export const SERVICES: Service[] = [
     duration: {
       ar: "جلسة واحدة للزراعة والاستلام المؤقت",
       en: "Single-day surgery & immediate provisional"
-    }
+    },
+    image: STOCK.implant
   },
   {
     id: "laser-whitening",
@@ -322,7 +330,8 @@ export const SERVICES: Service[] = [
     duration: {
       ar: "جلسة واحدة (ساعة ونصف)",
       en: "1 session (90 minutes)"
-    }
+    },
+    image: STOCK.whitening
   },
   {
     id: "aligners",
@@ -352,7 +361,8 @@ export const SERVICES: Service[] = [
     duration: {
       ar: "٦ أشهر إلى ١٢ شهرًا حسب الحالة",
       en: "6 to 12 months on average"
-    }
+    },
+    image: STOCK.aligners
   }
 ];
 
@@ -459,53 +469,56 @@ export const TESTIMONIALS: Testimonial[] = [
   {
     id: "t1",
     name: {
-      ar: "الأستاذ خالد بن عبد الرحمن",
-      en: "Khaled Bin Abdulrahman"
+      ar: "ياسمين محمد",
+      en: "Jasmeen Mohammed"
     },
     rating: 5,
     comment: {
-      ar: "المكان لا يشبه عيادات الأسنان أبدًا. شعرت وكأنني في فندق فاخر أو منتجع صحي هادئ. د. سارة فنانة بكل ما تعنيه الكلمة، صممت ابتسامتي بدقة متناهية والنتيجة طبيعية للغاية وتلقيت الكثير من المديح عليها.",
-      en: "The clinic looks absolutely nothing like a typical dentist office. I felt like I was checking into a high-end luxury wellness spa. Dr. Sarah is a true artist; my veneers are so thin and natural, I have received endless compliments."
+      ar: "الدكتورة بيان هي الأفضل! من النادر أن تجد موهبة ولطفاً بهذا المستوى في أطباء الأسنان ❤️ أحبها جداً وهي محترفة للغاية. 🫶 شكراً دكتورة بيان!!",
+      en: "Dr Bayan is the best! Its rare to find such talent and kind dentists nowadays ❤️ absolutely love her and shes extremely professional. 🫶 Thank u dr bayan!!"
     },
     treatment: {
-      ar: "تصميم الابتسامة الفينير السويسري",
-      en: "Bespoke Swiss Veneer Smile Design"
+      ar: "",
+      en: ""
     },
-    date: "2026-05-14"
+    date: "2026-06-12",
+    image: ""
   },
   {
     id: "t2",
     name: {
-      ar: "الدكتورة مريم القحطاني",
-      en: "Dr. Maryam Al-Qahtani"
+      ar: "نورهان لاب",
+      en: "Nourhan Lab"
     },
     rating: 5,
     comment: {
-      ar: "كمتخصصة في القطاع الطبي، تذهلني تفاصيل النظافة والتعقيم والدقة المجهرية المتبعة هنا. د. ألكسندر قام بزراعة سنين مفقودين بكل سلاسة وبدون أي ألم يذكر. الاستقبال والترحيب والروائح العطرية مهدئة ومريحة جدًا للأعصاب.",
-      en: "As a medical professional, the clinical hygiene protocols and micro-magnification precision are absolutely pristine. Dr. Stein placed my immediate implants flawlessly with zero pain. The aromatherapy and hospitality are top-tier."
+      ar: "تعامل راقي .. اطباء مميزون .. اهتمام واضح براحة المراجع من لحظة دخوله العيادة وحتى انتهاء العلاج .. اوصي بهالعيادة بشدة.",
+      en: "Elegant service… outstanding doctors… clear care for patient comfort from the moment you enter until treatment is complete… I highly recommend this clinic."
     },
     treatment: {
-      ar: "الزراعة المجهرية الفورية في نفس اليوم",
-      en: "Immediate Microscopic Implant"
+      ar: "",
+      en: ""
     },
-    date: "2026-06-02"
+    date: "2026-07-15",
+    image: ""
   },
   {
     id: "t3",
     name: {
-      ar: "سيد الأعمال راشد السديري",
-      en: "Rashid Al-Sudairy"
+      ar: "هديل الكتبي",
+      en: "Hadeel Al Ketbi"
     },
     rating: 5,
     comment: {
-      ar: "أقدر جودة الخدمة واحترام الوقت والخصوصية الشديدة التي وجدتها هنا. طاقم الاستقبال ينسق الدخول والخروج بحيث لا تلتقي بمرضى آخرين إلا نادرًا، والتقويم الشفاف يتقدم ببراعة وسرعة مدهشة.",
-      en: "I highly appreciate the respect for patient time, privacy, and outstanding discretion. The reception arranges visits so seamlessly that privacy is fully protected. My clear aligner results are moving beautifully."
+      ar: "عيادة خمس نجوم\nقمة في الرقي والتعامل من الاستقبال إلى كامل الفريق",
+      en: "A five-star clinic — excellence in elegance and service from reception through the entire team."
     },
     treatment: {
-      ar: "التقويم الشفاف والتحليل الرقمي",
-      en: "3D Clear Aligner Treatment"
+      ar: "",
+      en: ""
     },
-    date: "2026-06-20"
+    date: "2026-05-12",
+    image: ""
   }
 ];
 

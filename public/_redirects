@@ -1,1 +1,6 @@
 /*    /index.html   200
+/ar    /index.html   200
+/ar/*  /index.html   200
+/en    /index.html   200
+/en/*  /index.html   200
+/admin /index.html   200

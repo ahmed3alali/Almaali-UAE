@@ -32,9 +32,9 @@ export default function Hero({ lang }: HeroProps) {
       : { before: 'Your Smile is Your ', accent: 'Unique', after: ' Signature' };
 
   const stats = [
-    { value: 20, suffix: '×', label: t.heroPrecise, detail: lang === 'ar' ? 'توجيه ميكرومتري رقمي' : '3D & Micro Guidance' },
-    { value: 100, suffix: '%', label: t.heroRelax, detail: lang === 'ar' ? 'خالي تمامًا من القلق' : 'Anxiety-Free Sanctuary' },
-    { value: 1, suffix: '', label: t.heroExperience, detail: lang === 'ar' ? 'باقات وخدمات حصرية' : 'Elite Concierge Care' },
+    { value: 1, suffix: '', label: lang === 'ar' ? 'هدفنا رضاك' : 'Our goal is your satisfaction' },
+    { value: 100, suffix: '%', label: lang === 'ar' ? 'إهتمام بالتفاصيل' : 'Details Care' },
+    { value: 360, suffix: '°', label: lang === 'ar' ? ' رعاية متكاملة' : 'Comprehensive Care' },
   ];
 
   return (
@@ -47,12 +47,14 @@ export default function Hero({ lang }: HeroProps) {
         <SafeImage
           src={IMAGES.hero}
           alt={lang === 'ar' ? 'بهو عيادات المعالي الفاخر' : 'Al Maali luxury clinic lobby'}
-          className="h-full w-full scale-105 img-grade"
+          className="h-full w-full scale-105 translate-y-[5%] img-grade"
           loading="eager"
           fetchPriority="high"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-bg-dark/80 via-bg-dark/55 to-bg-dark" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,rgba(196,165,116,0.2),transparent_45%)]" />
+        <div className="absolute inset-0 bg-bg-dark/55" />
+        <div className="absolute inset-0 bg-gradient-to-b from-bg-dark/75 via-bg-dark/50 to-bg-dark/90" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,rgba(196,165,116,0.14),transparent_50%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-[55%] bg-gradient-to-t from-bg-dark via-bg-dark/70 to-transparent" />
       </motion.div>
 
       <motion.div
@@ -70,6 +72,7 @@ export default function Hero({ lang }: HeroProps) {
           </motion.p>
 
           <motion.h1
+            key={`hero-title-${lang}`}
             initial={reduced ? false : { opacity: 0, y: 48, filter: 'blur(10px)' }}
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
             transition={{ duration: 1.1, delay: 0.28, ease: [0.16, 1, 0.3, 1] }}
@@ -130,7 +133,6 @@ export default function Hero({ lang }: HeroProps) {
                   <AnimatedCounter value={stat.value} suffix={stat.suffix} />
                 </div>
                 <div className="mt-2 text-sm font-bold text-bg-light">{stat.label}</div>
-                <div className="mt-1 text-xs text-bg-light/55">{stat.detail}</div>
               </motion.div>
             ))}
           </motion.div>

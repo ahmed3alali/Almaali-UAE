@@ -4,7 +4,7 @@
  */
 
 import { motion, useReducedMotion } from 'motion/react';
-import { Language } from '../types';
+import { Language, VisionImages } from '../types';
 import { TRANSLATIONS } from '../data';
 import { IMAGES } from '../lib/images';
 import { staggerChildren, fadeUp, clipReveal } from '../lib/animations';
@@ -13,9 +13,10 @@ import SafeImage from './ui/SafeImage';
 
 interface AboutProps {
   lang: Language;
+  visionImages: VisionImages;
 }
 
-export default function About({ lang }: AboutProps) {
+export default function About({ lang, visionImages }: AboutProps) {
   const t = TRANSLATIONS[lang];
   const reduced = useReducedMotion();
 
@@ -24,6 +25,9 @@ export default function About({ lang }: AboutProps) {
     { title: t.aboutPhilosophy2Title, desc: t.aboutPhilosophy2Desc },
     { title: t.aboutPhilosophy3Title, desc: t.aboutPhilosophy3Desc },
   ];
+
+  const primary = visionImages.imagePrimary || IMAGES.about;
+  const secondary = visionImages.imageSecondary || IMAGES.heroAlt;
 
   return (
     <section id="about" className="section-pad relative overflow-hidden bg-bg-light">
@@ -55,7 +59,7 @@ export default function About({ lang }: AboutProps) {
             variants={clipReveal}
           >
             <SafeImage
-              src={IMAGES.about}
+              src={primary}
               alt={t.aboutStoryTitle}
               className="aspect-[16/11] w-full img-grade md:aspect-[16/10]"
             />
@@ -70,7 +74,7 @@ export default function About({ lang }: AboutProps) {
               transition={{ duration: 0.9, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
             >
               <SafeImage
-                src={IMAGES.heroAlt}
+                src={secondary}
                 alt=""
                 className="aspect-[4/5] h-full min-h-[220px] w-full object-cover img-grade md:absolute md:inset-0 md:aspect-auto"
               />

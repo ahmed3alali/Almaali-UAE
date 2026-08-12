@@ -22,7 +22,9 @@
   --font-arabic-body: "Ghaith Sans", "Thmanyah Sans", "SF Arabic", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-arabic-display: "Thmanyah Serif Display", "Ghaith Sans", "Thmanyah Sans", serif;
   --font-display: "Cormorant Garamond", "Thmanyah Serif Display", Georgia, serif;
-  --font-sans: "Ghaith Sans", "Thmanyah Sans", "SF Arabic", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  /* Latin stack — Arabic webfonts often omit Latin glyphs (blank English titles) */
+  --font-latin-sans: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Ghaith Sans", "Thmanyah Sans", "SF Arabic", var(--font-latin-sans);
 
   --text-display: clamp(2.75rem, 7vw, 6.5rem);
   --text-display-sm: clamp(2rem, 4.5vw, 3.75rem);
@@ -71,10 +73,15 @@
 
   html[lang='en'] .font-display {
     font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.01em;
   }
 
-  html[lang='en'] body {
-    font-family: var(--font-sans);
+  html[lang='en'] body,
+  html[lang='en'] .font-sans,
+  html[lang='en'] .font-arabic-body {
+    font-family: var(--font-latin-sans);
+    letter-spacing: 0;
   }
 
   ::selection {

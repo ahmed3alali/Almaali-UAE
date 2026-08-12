@@ -63,7 +63,9 @@ export default function MagneticButton({
 
   const inner = (
     <>
-      <span className="relative z-10">{children}</span>
+      <span className="relative z-10 inline-flex items-center justify-center gap-2 whitespace-nowrap">
+        {children}
+      </span>
       {variant === 'primary' && (
         <span className="absolute inset-0 translate-y-full bg-bronze transition-transform duration-500 ease-[var(--ease-out-expo)] group-hover:translate-y-0" />
       )}

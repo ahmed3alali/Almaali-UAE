@@ -25,8 +25,20 @@ import {
   Wifi,
   WifiOff,
   BarChart3,
+  Sparkles,
+  Star,
+  ScanEye,
 } from 'lucide-react';
-import { Language, BlogPost, GalleryItem, Doctor } from '../types';
+import {
+  Language,
+  BlogPost,
+  GalleryItem,
+  GalleryCategory,
+  Doctor,
+  Service,
+  Testimonial,
+  VisionImages,
+} from '../types';
 import {
   isSupabaseConfigured,
   saveBlogPostToSupabase,
@@ -44,6 +56,14 @@ import {
   fetchDoctorsFromSupabase,
   fetchGalleryItemsFromSupabase,
   fetchBlogPostsFromSupabase,
+  ensureStorageBucket,
+  saveGalleryCategoryToSupabase,
+  deleteGalleryCategoryFromSupabase,
+  saveServiceToSupabase,
+  deleteServiceFromSupabase,
+  saveTestimonialToSupabase,
+  deleteTestimonialFromSupabase,
+  saveVisionImagesToSupabase,
 } from '../lib/supabase';
 import {
   AdminField,
@@ -59,10 +79,15 @@ import {
   validateLogin,
   validateBlog,
   validateGallery,
+  validateGalleryCategory,
   validateDoctor,
+  validateService,
+  validateTestimonial,
+  validateVisionImages,
   hasErrors,
   type FieldErrors,
 } from '../lib/adminValidation';
+import { slugifyCategoryId } from '../lib/galleryCategories';
 import { IMAGES } from '../lib/images';
 import { cn } from '../lib/utils';
 
@@ -74,8 +99,16 @@ interface AdminDashboardProps {
   setBlogPosts: React.Dispatch<React.SetStateAction<BlogPost[]>>;
   galleryItems: GalleryItem[];
   setGalleryItems: React.Dispatch<React.SetStateAction<GalleryItem[]>>;
+  galleryCategories: GalleryCategory[];
+  setGalleryCategories: React.Dispatch<React.SetStateAction<GalleryCategory[]>>;
   doctors: Doctor[];
   setDoctors: React.Dispatch<React.SetStateAction<Doctor[]>>;
+  services: Service[];
+  setServices: React.Dispatch<React.SetStateAction<Service[]>>;
+  testimonials: Testimonial[];
+  setTestimonials: React.Dispatch<React.SetStateAction<Testimonial[]>>;
+  visionImages: VisionImages;
+  setVisionImages: React.Dispatch<React.SetStateAction<VisionImages>>;
   /**
    * Commit latest content arrays to public site state + session cache.
    * Prefer this over remote refetch (list endpoints strip blog content).
@@ -84,10 +117,14 @@ interface AdminDashboardProps {
     blogs?: BlogPost[];
     gallery?: GalleryItem[];
     doctors?: Doctor[];
+    galleryCategories?: GalleryCategory[];
+    services?: Service[];
+    testimonials?: Testimonial[];
+    visionImages?: VisionImages;
   }) => void;
 }
 
-type AdminTab = 'overview' | 'blogs' | 'gallery' | 'team';
+type AdminTab = 'overview' | 'blogs' | 'gallery' | 'team' | 'services' | 'testimonials' | 'vision';
 type ConfirmState = { message: string; onConfirm: () => void } | null;
 
 const INACTIVITY_MS = 30 * 60 * 1000;
@@ -113,8 +150,16 @@ export default function AdminDashboard({
   setBlogPosts,
   galleryItems,
   setGalleryItems,
+  galleryCategories,
+  setGalleryCategories,
   doctors,
   setDoctors,
+  services,
+  setServices,
+  testimonials,
+  setTestimonials,
+  visionImages,
+  setVisionImages,
   onContentCommit,
 }: AdminDashboardProps) {
   const isRtl = lang === 'ar';
@@ -132,10 +177,16 @@ export default function AdminDashboard({
   const [blogQuery, setBlogQuery] = useState('');
   const [galleryQuery, setGalleryQuery] = useState('');
   const [teamQuery, setTeamQuery] = useState('');
+  const [servicesQuery, setServicesQuery] = useState('');
+  const [testimonialsQuery, setTestimonialsQuery] = useState('');
 
   const [editingBlog, setEditingBlog] = useState<Partial<BlogPost> | null>(null);
   const [editingGallery, setEditingGallery] = useState<Partial<GalleryItem> | null>(null);
   const [editingDoctor, setEditingDoctor] = useState<Partial<Doctor> | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Partial<GalleryCategory> | null>(null);
+  const [editingService, setEditingService] = useState<Partial<Service> | null>(null);
+  const [editingTestimonial, setEditingTestimonial] = useState<Partial<Testimonial> | null>(null);
+  const [editingVision, setEditingVision] = useState<Partial<VisionImages> | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -176,6 +227,10 @@ export default function AdminDashboard({
     setEditingBlog(null);
     setEditingGallery(null);
     setEditingDoctor(null);
+    setEditingCategory(null);
+    setEditingService(null);
+    setEditingTestimonial(null);
+    setEditingVision(null);
     setFieldErrors({});
     setConfirmDialog(null);
   }, []);
@@ -184,6 +239,10 @@ export default function AdminDashboard({
     setEditingBlog(null);
     setEditingGallery(null);
     setEditingDoctor(null);
+    setEditingCategory(null);
+    setEditingService(null);
+    setEditingTestimonial(null);
+    setEditingVision(null);
     setFieldErrors({});
   }, []);
 
@@ -265,6 +324,11 @@ export default function AdminDashboard({
     if (!isSupabaseConfigured || isMigratingImages) return;
     setIsMigratingImages(true);
     try {
+      const bucket = await ensureStorageBucket();
+      if (!bucket.ok) {
+        console.warn('[Admin] Storage bucket:', bucket.message);
+      }
+
       const result = await migrateBase64ImagesToStorage();
       if (result.migrated > 0) {
         const [docs, gal, blogs] = await Promise.all([
@@ -272,17 +336,33 @@ export default function AdminDashboard({
           fetchGalleryItemsFromSupabase(),
           fetchBlogPostsFromSupabase(),
         ]);
+        // Merge remote into local — never drop a doctor that exists only locally mid-session
+        const mergeById = <T extends { id: string }>(local: T[], remote: T[] | null): T[] => {
+          if (!remote) return local;
+          const map = new Map(local.map((item) => [item.id, item]));
+          for (const item of remote) map.set(item.id, item);
+          return Array.from(map.values());
+        };
         if (docs) {
-          setDoctors(docs);
-          onContentCommit?.({ doctors: docs });
+          setDoctors((prev) => {
+            const next = mergeById(prev, docs);
+            onContentCommit?.({ doctors: next });
+            return next;
+          });
         }
         if (gal) {
-          setGalleryItems(gal);
-          onContentCommit?.({ gallery: gal });
+          setGalleryItems((prev) => {
+            const next = mergeById(prev, gal);
+            onContentCommit?.({ gallery: next });
+            return next;
+          });
         }
         if (blogs) {
-          setBlogPosts(blogs);
-          onContentCommit?.({ blogs });
+          setBlogPosts((prev) => {
+            const next = mergeById(prev, blogs);
+            onContentCommit?.({ blogs: next });
+            return next;
+          });
         }
         showSuccess(
           isRtl
@@ -292,8 +372,14 @@ export default function AdminDashboard({
       } else if (result.failed > 0) {
         showError(
           isRtl
-            ? 'فشل رفع بعض الصور. تأكد من وجود bucket التخزين وصلاحيات الأدمن.'
-            : 'Some uploads failed. Check the Storage bucket and admin permissions.'
+            ? 'فشل رفع بعض الصور. أنشئ bucket باسم almaali-images في Supabase Storage (Public).'
+            : 'Some uploads failed. Create a public Storage bucket named almaali-images in Supabase.'
+        );
+      } else if (!bucket.ok) {
+        showError(
+          isRtl
+            ? `التخزين غير جاهز: ${bucket.message}`
+            : `Storage not ready: ${bucket.message}`
         );
       } else {
         showSuccess(isRtl ? 'كل الصور محسّنة مسبقاً' : 'All images are already optimized');
@@ -323,24 +409,53 @@ export default function AdminDashboard({
   }, [isAuthenticated, runImageMigration]);
 
   const openBlogDrawer = (post?: BlogPost) => {
-    setEditingGallery(null);
-    setEditingDoctor(null);
-    setFieldErrors({});
+    closeDrawers();
     setEditingBlog(post ? { ...post } : {});
   };
 
   const openGalleryDrawer = (item?: GalleryItem) => {
-    setEditingBlog(null);
-    setEditingDoctor(null);
-    setFieldErrors({});
-    setEditingGallery(item ? { ...item } : { category: 'clinic' });
+    closeDrawers();
+    setEditingGallery(
+      item
+        ? { ...item }
+        : { category: galleryCategories[0]?.id || 'clinic' }
+    );
   };
 
   const openDoctorDrawer = (doctor?: Doctor) => {
-    setEditingBlog(null);
-    setEditingGallery(null);
-    setFieldErrors({});
+    closeDrawers();
     setEditingDoctor(doctor ? { ...doctor } : {});
+  };
+
+  const openServiceDrawer = (service?: Service) => {
+    closeDrawers();
+    setEditingService(
+      service
+        ? { ...service }
+        : {
+            iconName: 'Gem',
+            details: { ar: [], en: [] },
+            duration: { ar: '', en: '' },
+          }
+    );
+  };
+
+  const openTestimonialDrawer = (item?: Testimonial) => {
+    closeDrawers();
+    setEditingTestimonial(
+      item
+        ? { ...item }
+        : {
+            rating: 5,
+            treatment: { ar: '', en: '' },
+            date: new Date().toISOString().slice(0, 10),
+          }
+    );
+  };
+
+  const openVisionEditor = () => {
+    closeDrawers();
+    setEditingVision({ ...visionImages });
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -416,6 +531,15 @@ export default function AdminDashboard({
     onContentCommit?.({ gallery: next });
   };
 
+  const commitCategories = (recipe: (prev: GalleryCategory[]) => GalleryCategory[]) => {
+    let next: GalleryCategory[] = [];
+    setGalleryCategories((prev) => {
+      next = recipe(prev);
+      return next;
+    });
+    onContentCommit?.({ galleryCategories: next });
+  };
+
   const commitDoctors = (recipe: (prev: Doctor[]) => Doctor[]) => {
     let next: Doctor[] = [];
     setDoctors((prev) => {
@@ -423,6 +547,29 @@ export default function AdminDashboard({
       return next;
     });
     onContentCommit?.({ doctors: next });
+  };
+
+  const commitServices = (recipe: (prev: Service[]) => Service[]) => {
+    let next: Service[] = [];
+    setServices((prev) => {
+      next = recipe(prev);
+      return next;
+    });
+    onContentCommit?.({ services: next });
+  };
+
+  const commitTestimonials = (recipe: (prev: Testimonial[]) => Testimonial[]) => {
+    let next: Testimonial[] = [];
+    setTestimonials((prev) => {
+      next = recipe(prev);
+      return next;
+    });
+    onContentCommit?.({ testimonials: next });
+  };
+
+  const commitVision = (next: VisionImages) => {
+    setVisionImages(next);
+    onContentCommit?.({ visionImages: next });
   };
 
   // ─── Blog CRUD ───
@@ -443,8 +590,8 @@ export default function AdminDashboard({
         en: editingBlog.title!.en!.trim(),
       },
       excerpt: {
-        ar: editingBlog.excerpt!.ar!.trim(),
-        en: editingBlog.excerpt!.en!.trim(),
+        ar: editingBlog.excerpt?.ar?.trim() || '',
+        en: editingBlog.excerpt?.en?.trim() || '',
       },
       content: {
         ar: editingBlog.content!.ar!.trim(),
@@ -480,23 +627,25 @@ export default function AdminDashboard({
 
     try {
       let cloudOk = true;
+      let toCommit = validated;
       if (isSupabaseConfigured) {
-        cloudOk = await saveBlogPostToSupabase(validated);
+        const saved = await saveBlogPostToSupabase(validated);
+        cloudOk = Boolean(saved);
+        if (saved) toCommit = saved;
       }
 
-      // Always update the public site state (local-first)
       commitBlogs((prev) => {
-        const exists = prev.some((b) => b.id === validated.id);
-        if (exists) return prev.map((b) => (b.id === validated.id ? validated : b));
-        return [validated, ...prev];
+        const exists = prev.some((b) => b.id === toCommit.id);
+        if (exists) return prev.map((b) => (b.id === toCommit.id ? toCommit : b));
+        return [toCommit, ...prev];
       });
       closeDrawers();
 
       if (!cloudOk) {
         showError(
           isRtl
-            ? 'تم الحفظ على الموقع — مزامنة السحابة فشلت. تحقق من Supabase.'
-            : 'Saved on site — cloud sync failed. Check Supabase.'
+            ? 'تم الحفظ على الموقع — مزامنة السحابة فشلت. تحقق من تسجيل الدخول وSupabase.'
+            : 'Saved on site — cloud sync failed. Check login & Supabase.'
         );
       } else {
         showSuccess(isRtl ? 'تم حفظ المقال ونشره على الموقع' : 'Article saved and live on the site');
@@ -544,7 +693,11 @@ export default function AdminDashboard({
     e.preventDefault();
     if (!editingGallery) return;
 
-    const errors = validateGallery(editingGallery, isRtl);
+    const errors = validateGallery(
+      editingGallery,
+      isRtl,
+      galleryCategories.map((c) => c.id)
+    );
     setFieldErrors(errors);
     if (hasErrors(errors)) return;
 
@@ -556,7 +709,7 @@ export default function AdminDashboard({
         ar: editingGallery.title!.ar!.trim(),
         en: editingGallery.title!.en!.trim(),
       },
-      category: editingGallery.category as 'clinic' | 'cases',
+      category: (editingGallery.category || galleryCategories[0]?.id || 'clinic').trim(),
       image: editingGallery.image!.trim(),
       description: {
         ar: editingGallery.description?.ar?.trim() || '',
@@ -571,22 +724,25 @@ export default function AdminDashboard({
 
     try {
       let cloudOk = true;
+      let toCommit = validated;
       if (isSupabaseConfigured) {
-        cloudOk = await saveGalleryItemToSupabase(validated);
+        const saved = await saveGalleryItemToSupabase(validated);
+        cloudOk = Boolean(saved);
+        if (saved) toCommit = saved;
       }
 
       commitGallery((prev) => {
-        const exists = prev.some((g) => g.id === validated.id);
-        if (exists) return prev.map((g) => (g.id === validated.id ? validated : g));
-        return [...prev, validated];
+        const exists = prev.some((g) => g.id === toCommit.id);
+        if (exists) return prev.map((g) => (g.id === toCommit.id ? toCommit : g));
+        return [...prev, toCommit];
       });
       closeDrawers();
 
       if (!cloudOk) {
         showError(
           isRtl
-            ? 'تم الحفظ على الموقع — مزامنة السحابة فشلت. تحقق من Supabase.'
-            : 'Saved on site — cloud sync failed. Check Supabase.'
+            ? 'تم الحفظ على الموقع — مزامنة السحابة فشلت. تحقق من تسجيل الدخول وSupabase.'
+            : 'Saved on site — cloud sync failed. Check login & Supabase.'
         );
       } else {
         showSuccess(isRtl ? 'تم حفظ الصورة ونشرها على الموقع' : 'Image saved and live on the site');
@@ -629,6 +785,111 @@ export default function AdminDashboard({
     });
   };
 
+  // ─── Gallery category CRUD ───
+  const openCategoryEditor = (cat?: GalleryCategory) => {
+    closeDrawers();
+    setEditingCategory(cat ? { ...cat } : { id: '', label: { ar: '', en: '' } });
+  };
+
+  const saveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory) return;
+
+    const errors = validateGalleryCategory(editingCategory, isRtl);
+    setFieldErrors(errors);
+    if (hasErrors(errors)) return;
+
+    const label = {
+      ar: editingCategory.label!.ar!.trim(),
+      en: editingCategory.label!.en!.trim(),
+    };
+    const id =
+      editingCategory.id?.trim() ||
+      slugifyCategoryId(label.en || label.ar);
+
+    if (galleryCategories.some((c) => c.id === id && c.id !== editingCategory.id)) {
+      setFieldErrors({ id: isRtl ? 'المعرّف مستخدم مسبقاً' : 'ID already exists' });
+      return;
+    }
+
+    const validated: GalleryCategory = { id, label };
+    setIsSaving(true);
+    try {
+      let cloudOk = true;
+      if (isSupabaseConfigured) {
+        cloudOk = await saveGalleryCategoryToSupabase(
+          validated,
+          galleryCategories.findIndex((c) => c.id === id)
+        );
+      }
+
+      const prevId = editingCategory.id?.trim();
+      commitCategories((prev) => {
+        const withoutOld =
+          prevId && prevId !== id ? prev.filter((c) => c.id !== prevId) : prev;
+        const exists = withoutOld.some((c) => c.id === id);
+        if (exists) return withoutOld.map((c) => (c.id === id ? validated : c));
+        return [...withoutOld, validated];
+      });
+
+      // If renamed id, remaps items using the old id
+      if (prevId && prevId !== id) {
+        commitGallery((prev) =>
+          prev.map((item) => (item.category === prevId ? { ...item, category: id } : item))
+        );
+      }
+
+      setEditingCategory(null);
+      if (!cloudOk) {
+        showError(
+          isRtl
+            ? 'تم الحفظ محلياً — شغّل supabase-gallery-categories.sql إن لزم'
+            : 'Saved locally — run supabase-gallery-categories.sql if needed'
+        );
+      } else {
+        showSuccess(isRtl ? 'تم حفظ التصنيف' : 'Category saved');
+      }
+    } catch (err) {
+      console.error(err);
+      showError(isRtl ? 'فشل حفظ التصنيف' : 'Failed to save category');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteCategory = (id: string) => {
+    const inUse = galleryItems.some((g) => g.category === id);
+    if (inUse) {
+      showError(
+        isRtl
+          ? 'لا يمكن حذف تصنيف مستخدم في صور المعرض'
+          : 'Cannot delete a category still used by gallery images'
+      );
+      return;
+    }
+    if (galleryCategories.length <= 1) {
+      showError(isRtl ? 'يجب الإبقاء على تصنيف واحد على الأقل' : 'Keep at least one category');
+      return;
+    }
+
+    setConfirmDialog({
+      message: isRtl ? 'حذف هذا التصنيف؟' : 'Delete this category?',
+      onConfirm: async () => {
+        setIsSaving(true);
+        try {
+          if (isSupabaseConfigured) await deleteGalleryCategoryFromSupabase(id);
+          commitCategories((prev) => prev.filter((c) => c.id !== id));
+          showSuccess(isRtl ? 'تم حذف التصنيف' : 'Category deleted');
+        } catch (err) {
+          console.error(err);
+          showError(isRtl ? 'فشل حذف التصنيف' : 'Failed to delete category');
+        } finally {
+          setIsSaving(false);
+        }
+      },
+    });
+  };
+
   // ─── Team CRUD ───
   const saveDoctor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -655,20 +916,20 @@ export default function AdminDashboard({
         en: editingDoctor.name!.en!.trim(),
       },
       role: {
-        ar: editingDoctor.role!.ar!.trim(),
-        en: editingDoctor.role!.en!.trim(),
+        ar: editingDoctor.role?.ar?.trim() || '',
+        en: editingDoctor.role?.en?.trim() || '',
       },
       bio: {
-        ar: editingDoctor.bio!.ar!.trim(),
-        en: editingDoctor.bio!.en!.trim(),
+        ar: editingDoctor.bio?.ar?.trim() || '',
+        en: editingDoctor.bio?.en?.trim() || '',
       },
       specialties: {
         ar: specsAr,
         en: specsEn,
       },
       education: {
-        ar: editingDoctor.education!.ar!.trim(),
-        en: editingDoctor.education!.en!.trim(),
+        ar: editingDoctor.education?.ar?.trim() || '',
+        en: editingDoctor.education?.en?.trim() || '',
       },
       image: editingDoctor.image!.trim(),
     };
@@ -680,22 +941,25 @@ export default function AdminDashboard({
 
     try {
       let cloudOk = true;
+      let toCommit = validated;
       if (isSupabaseConfigured) {
-        cloudOk = await saveDoctorToSupabase(validated);
+        const saved = await saveDoctorToSupabase(validated);
+        cloudOk = Boolean(saved);
+        if (saved) toCommit = saved;
       }
 
       commitDoctors((prev) => {
-        const exists = prev.some((d) => d.id === validated.id);
-        if (exists) return prev.map((d) => (d.id === validated.id ? validated : d));
-        return [...prev, validated];
+        const exists = prev.some((d) => d.id === toCommit.id);
+        if (exists) return prev.map((d) => (d.id === toCommit.id ? toCommit : d));
+        return [...prev, toCommit];
       });
       closeDrawers();
 
       if (!cloudOk) {
         showError(
           isRtl
-            ? 'تم الحفظ على الموقع — مزامنة السحابة فشلت. تحقق من Supabase.'
-            : 'Saved on site — cloud sync failed. Check Supabase.'
+            ? 'تم الحفظ على الموقع — مزامنة السحابة فشلت. سجّل الدخول مجدداً وتحقق من Supabase.'
+            : 'Saved on site — cloud sync failed. Sign in again and check Supabase.'
         );
       } else {
         showSuccess(isRtl ? 'تم حفظ الطبيب ونشره على الموقع' : 'Doctor saved and live on the site');
@@ -738,6 +1002,283 @@ export default function AdminDashboard({
     });
   };
 
+  const parseDetails = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.map(String).map((s) => s.trim()).filter(Boolean);
+    if (typeof value === 'string') {
+      return value
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    return [];
+  };
+
+  // ─── Services CRUD ───
+  const saveService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingService) return;
+
+    const detailsAr = parseDetails(editingService.details?.ar);
+    const detailsEn = parseDetails(editingService.details?.en);
+    const draft: Partial<Service> = {
+      ...editingService,
+      details: { ar: detailsAr, en: detailsEn },
+    };
+
+    const errors = validateService(draft, isRtl);
+    setFieldErrors(errors);
+    if (hasErrors(errors)) return;
+
+    setIsSaving(true);
+
+    const validated: Service = {
+      id: editingService.id || `svc-${Date.now()}`,
+      iconName: editingService.iconName?.trim() || 'Gem',
+      title: {
+        ar: editingService.title!.ar!.trim(),
+        en: editingService.title!.en!.trim(),
+      },
+      description: {
+        ar: editingService.description!.ar!.trim(),
+        en: editingService.description!.en!.trim(),
+      },
+      details: { ar: detailsAr, en: detailsEn },
+      duration: {
+        ar: editingService.duration?.ar?.trim() || '',
+        en: editingService.duration?.en?.trim() || '',
+      },
+      image: editingService.image!.trim(),
+    };
+
+    if (isSupabaseConfigured && validated.image.startsWith('data:')) {
+      const url = await uploadBase64Image(validated.image, 'services', validated.id);
+      if (url) validated.image = url;
+    }
+
+    try {
+      let cloudOk = true;
+      let toCommit = validated;
+      let sortOrder = 0;
+      commitServices((prev) => {
+        const exists = prev.some((s) => s.id === validated.id);
+        sortOrder = exists
+          ? Math.max(0, prev.findIndex((s) => s.id === validated.id))
+          : prev.length;
+        return prev;
+      });
+
+      if (isSupabaseConfigured) {
+        const saved = await saveServiceToSupabase(validated, sortOrder);
+        cloudOk = Boolean(saved);
+        if (saved) toCommit = saved;
+      }
+
+      commitServices((prev) => {
+        const exists = prev.some((s) => s.id === toCommit.id);
+        if (exists) return prev.map((s) => (s.id === toCommit.id ? toCommit : s));
+        return [...prev, toCommit];
+      });
+      closeDrawers();
+
+      if (!cloudOk) {
+        showError(
+          isRtl
+            ? 'تم الحفظ على الموقع — مزامنة السحابة فشلت. نفّذ ملف SQL للجداول الجديدة إن لزم.'
+            : 'Saved on site — cloud sync failed. Run the new SQL migration if needed.'
+        );
+      } else {
+        showSuccess(isRtl ? 'تم حفظ الخدمة' : 'Service saved');
+      }
+    } catch (err) {
+      console.error('Error saving service:', err);
+      showError(isRtl ? 'حدث خطأ أثناء الحفظ' : 'Error occurred while saving');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteService = (id: string) => {
+    setConfirmDialog({
+      message: isRtl ? 'حذف هذه الخدمة؟' : 'Delete this service?',
+      onConfirm: async () => {
+        setIsSaving(true);
+        try {
+          let cloudOk = true;
+          if (isSupabaseConfigured) cloudOk = await deleteServiceFromSupabase(id);
+          commitServices((prev) => prev.filter((s) => s.id !== id));
+          if (!cloudOk) {
+            showError(
+              isRtl ? 'تم الحذف من الموقع — مزامنة السحابة فشلت' : 'Removed on site — cloud sync failed'
+            );
+          } else {
+            showSuccess(isRtl ? 'تم حذف الخدمة' : 'Service deleted');
+          }
+        } catch (err) {
+          console.error('Error deleting service:', err);
+          showError(isRtl ? 'حدث خطأ أثناء الحذف' : 'Error occurred while deleting');
+        } finally {
+          setIsSaving(false);
+        }
+      },
+    });
+  };
+
+  // ─── Testimonials CRUD ───
+  const saveTestimonial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTestimonial) return;
+
+    const errors = validateTestimonial(editingTestimonial, isRtl);
+    setFieldErrors(errors);
+    if (hasErrors(errors)) return;
+
+    setIsSaving(true);
+
+    const validated: Testimonial = {
+      id: editingTestimonial.id || `t-${Date.now()}`,
+      name: {
+        ar: editingTestimonial.name!.ar!.trim(),
+        en: editingTestimonial.name!.en!.trim(),
+      },
+      rating: Math.min(5, Math.max(1, Number(editingTestimonial.rating) || 5)),
+      comment: {
+        ar: editingTestimonial.comment!.ar!.trim(),
+        en: editingTestimonial.comment!.en!.trim(),
+      },
+      treatment: {
+        ar: editingTestimonial.treatment?.ar?.trim() || '',
+        en: editingTestimonial.treatment?.en?.trim() || '',
+      },
+      date: editingTestimonial.date?.trim() || new Date().toISOString().slice(0, 10),
+      image: editingTestimonial.image?.trim() || '',
+    };
+
+    if (isSupabaseConfigured && validated.image.startsWith('data:')) {
+      const url = await uploadBase64Image(validated.image, 'testimonials', validated.id);
+      if (url) validated.image = url;
+    }
+
+    try {
+      let cloudOk = true;
+      let toCommit = validated;
+      let sortOrder = 0;
+      commitTestimonials((prev) => {
+        const exists = prev.some((t) => t.id === validated.id);
+        sortOrder = exists
+          ? Math.max(0, prev.findIndex((t) => t.id === validated.id))
+          : prev.length;
+        return prev;
+      });
+
+      if (isSupabaseConfigured) {
+        const saved = await saveTestimonialToSupabase(validated, sortOrder);
+        cloudOk = Boolean(saved);
+        if (saved) toCommit = saved;
+      }
+
+      commitTestimonials((prev) => {
+        const exists = prev.some((t) => t.id === toCommit.id);
+        if (exists) return prev.map((t) => (t.id === toCommit.id ? toCommit : t));
+        return [...prev, toCommit];
+      });
+      closeDrawers();
+
+      if (!cloudOk) {
+        showError(
+          isRtl
+            ? 'تم الحفظ على الموقع — مزامنة السحابة فشلت. نفّذ ملف SQL للجداول الجديدة إن لزم.'
+            : 'Saved on site — cloud sync failed. Run the new SQL migration if needed.'
+        );
+      } else {
+        showSuccess(isRtl ? 'تم حفظ التقييم' : 'Review saved');
+      }
+    } catch (err) {
+      console.error('Error saving testimonial:', err);
+      showError(isRtl ? 'حدث خطأ أثناء الحفظ' : 'Error occurred while saving');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTestimonial = (id: string) => {
+    setConfirmDialog({
+      message: isRtl ? 'حذف هذا التقييم؟' : 'Delete this review?',
+      onConfirm: async () => {
+        setIsSaving(true);
+        try {
+          let cloudOk = true;
+          if (isSupabaseConfigured) cloudOk = await deleteTestimonialFromSupabase(id);
+          commitTestimonials((prev) => prev.filter((t) => t.id !== id));
+          if (!cloudOk) {
+            showError(
+              isRtl ? 'تم الحذف من الموقع — مزامنة السحابة فشلت' : 'Removed on site — cloud sync failed'
+            );
+          } else {
+            showSuccess(isRtl ? 'تم حذف التقييم' : 'Review deleted');
+          }
+        } catch (err) {
+          console.error('Error deleting testimonial:', err);
+          showError(isRtl ? 'حدث خطأ أثناء الحذف' : 'Error occurred while deleting');
+        } finally {
+          setIsSaving(false);
+        }
+      },
+    });
+  };
+
+  // ─── Vision images ───
+  const saveVision = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVision) return;
+
+    const errors = validateVisionImages(editingVision, isRtl);
+    setFieldErrors(errors);
+    if (hasErrors(errors)) return;
+
+    setIsSaving(true);
+
+    let validated: VisionImages = {
+      imagePrimary: editingVision.imagePrimary!.trim(),
+      imageSecondary: editingVision.imageSecondary!.trim(),
+    };
+
+    try {
+      let cloudOk = true;
+      if (isSupabaseConfigured) {
+        if (validated.imagePrimary.startsWith('data:')) {
+          const url = await uploadBase64Image(validated.imagePrimary, 'vision', 'primary');
+          if (url) validated = { ...validated, imagePrimary: url };
+        }
+        if (validated.imageSecondary.startsWith('data:')) {
+          const url = await uploadBase64Image(validated.imageSecondary, 'vision', 'secondary');
+          if (url) validated = { ...validated, imageSecondary: url };
+        }
+        const saved = await saveVisionImagesToSupabase(validated);
+        cloudOk = Boolean(saved);
+        if (saved) validated = saved;
+      }
+
+      commitVision(validated);
+      closeDrawers();
+
+      if (!cloudOk) {
+        showError(
+          isRtl
+            ? 'تم الحفظ على الموقع — مزامنة السحابة فشلت. نفّذ ملف SQL للجداول الجديدة إن لزم.'
+            : 'Saved on site — cloud sync failed. Run the new SQL migration if needed.'
+        );
+      } else {
+        showSuccess(isRtl ? 'تم حفظ صور الرؤية' : 'Vision images saved');
+      }
+    } catch (err) {
+      console.error('Error saving vision images:', err);
+      showError(isRtl ? 'حدث خطأ أثناء الحفظ' : 'Error occurred while saving');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ─── Filters & nav ───
   const filteredBlogs = useMemo(() => {
     const q = blogQuery.trim().toLowerCase();
     if (!q) return blogPosts;
@@ -779,11 +1320,45 @@ export default function AdminDashboard({
     );
   }, [doctors, teamQuery]);
 
+  const filteredServices = useMemo(() => {
+    const q = servicesQuery.trim().toLowerCase();
+    if (!q) return services;
+    return services.filter(
+      (s) =>
+        s.title.ar.toLowerCase().includes(q) ||
+        s.title.en.toLowerCase().includes(q) ||
+        s.description.ar.toLowerCase().includes(q) ||
+        s.description.en.toLowerCase().includes(q)
+    );
+  }, [services, servicesQuery]);
+
+  const filteredTestimonials = useMemo(() => {
+    const q = testimonialsQuery.trim().toLowerCase();
+    if (!q) return testimonials;
+    return testimonials.filter(
+      (t) =>
+        t.name.ar.toLowerCase().includes(q) ||
+        t.name.en.toLowerCase().includes(q) ||
+        t.comment.ar.toLowerCase().includes(q) ||
+        t.comment.en.toLowerCase().includes(q) ||
+        t.treatment.ar.toLowerCase().includes(q) ||
+        t.treatment.en.toLowerCase().includes(q)
+    );
+  }, [testimonials, testimonialsQuery]);
+
   const navItems: { id: AdminTab; icon: React.ReactNode; label: string; count?: number }[] = [
     { id: 'overview', icon: <BarChart3 size={15} />, label: isRtl ? 'نظرة عامة' : 'Overview' },
     { id: 'blogs', icon: <BookOpen size={15} />, label: isRtl ? 'المدونة' : 'Blog', count: blogPosts.length },
     { id: 'gallery', icon: <ImageIcon size={15} />, label: isRtl ? 'المعرض' : 'Gallery', count: galleryItems.length },
     { id: 'team', icon: <Users size={15} />, label: isRtl ? 'الفريق' : 'Team', count: doctors.length },
+    { id: 'services', icon: <Sparkles size={15} />, label: isRtl ? 'الخدمات' : 'Services', count: services.length },
+    {
+      id: 'testimonials',
+      icon: <Star size={15} />,
+      label: isRtl ? 'التقييمات' : 'Ratings',
+      count: testimonials.length,
+    },
+    { id: 'vision', icon: <ScanEye size={15} />, label: isRtl ? 'رؤيتنا' : 'Vision' },
   ];
 
   const drawerFooter = (formId: string, onCancel: () => void, onSaveLabel: string) => (
@@ -1187,12 +1762,11 @@ export default function AdminDashboard({
             <AdminField
               className="md:col-span-2"
               label={isRtl ? 'نبذة (عربي)' : 'Excerpt (AR)'}
-              error={fieldErrors['excerpt.ar']}
+              hint={isRtl ? 'اختياري' : 'Optional'}
             >
               <AdminTextarea
                 rows={2}
                 value={editingBlog.excerpt?.ar || ''}
-                error={!!fieldErrors['excerpt.ar']}
                 onChange={(e) =>
                   setEditingBlog({
                     ...editingBlog,
@@ -1204,12 +1778,11 @@ export default function AdminDashboard({
             <AdminField
               className="md:col-span-2"
               label={isRtl ? 'نبذة (إنجليزي)' : 'Excerpt (EN)'}
-              error={fieldErrors['excerpt.en']}
+              hint={isRtl ? 'اختياري' : 'Optional'}
             >
               <AdminTextarea
                 rows={2}
                 value={editingBlog.excerpt?.en || ''}
-                error={!!fieldErrors['excerpt.en']}
                 onChange={(e) =>
                   setEditingBlog({
                     ...editingBlog,
@@ -1301,17 +1874,24 @@ export default function AdminDashboard({
             </AdminField>
             <AdminField className="md:col-span-2" label={isRtl ? 'التصنيف' : 'Category'} error={fieldErrors.category}>
               <AdminSelect
-                value={editingGallery.category || 'clinic'}
+                value={editingGallery.category || galleryCategories[0]?.id || ''}
                 error={!!fieldErrors.category}
                 onChange={(e) =>
                   setEditingGallery({
                     ...editingGallery,
-                    category: e.target.value as 'clinic' | 'cases',
+                    category: e.target.value,
                   })
                 }
               >
-                <option value="clinic">{isRtl ? 'مساحة العيادة' : 'Boutique Space'}</option>
-                <option value="cases">{isRtl ? 'حالات تجميل' : 'Smile Case'}</option>
+                {galleryCategories.length === 0 ? (
+                  <option value="">{isRtl ? 'أضف تصنيفاً أولاً' : 'Add a category first'}</option>
+                ) : (
+                  galleryCategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.label[lang]}
+                    </option>
+                  ))
+                )}
               </AdminSelect>
             </AdminField>
 
@@ -1355,7 +1935,69 @@ export default function AdminDashboard({
         )}
       </AdminDrawer>
 
+      {/* Category drawer */}
+      <AdminDrawer
+        open={!!editingCategory}
+        onClose={closeDrawers}
+        isRtl={isRtl}
+        title={
+          editingCategory?.id
+            ? isRtl
+              ? 'تعديل التصنيف'
+              : 'Edit category'
+            : isRtl
+              ? 'تصنيف جديد'
+              : 'New category'
+        }
+        footer={drawerFooter(
+          'category-form',
+          closeDrawers,
+          isRtl ? 'حفظ التصنيف' : 'Save category'
+        )}
+      >
+        {editingCategory && (
+          <form id="category-form" onSubmit={saveCategory} className="grid gap-5">
+            <AdminField label={isRtl ? 'الاسم (عربي)' : 'Label (AR)'} error={fieldErrors['label.ar']}>
+              <AdminInput
+                value={editingCategory.label?.ar || ''}
+                error={!!fieldErrors['label.ar']}
+                onChange={(e) =>
+                  setEditingCategory({
+                    ...editingCategory,
+                    label: { ar: e.target.value, en: editingCategory.label?.en || '' },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField label={isRtl ? 'الاسم (إنجليزي)' : 'Label (EN)'} error={fieldErrors['label.en']}>
+              <AdminInput
+                value={editingCategory.label?.en || ''}
+                error={!!fieldErrors['label.en']}
+                onChange={(e) =>
+                  setEditingCategory({
+                    ...editingCategory,
+                    label: { ar: editingCategory.label?.ar || '', en: e.target.value },
+                  })
+                }
+              />
+            </AdminField>
+            {editingCategory.id ? (
+              <p className="text-[12px] text-muted">
+                {isRtl ? 'المعرّف:' : 'ID:'} <code className="text-ink">{editingCategory.id}</code>
+              </p>
+            ) : (
+              <p className="text-[12px] text-muted">
+                {isRtl
+                  ? 'سيتم توليد المعرّف تلقائياً من الاسم الإنجليزي.'
+                  : 'ID is auto-generated from the English label.'}
+              </p>
+            )}
+          </form>
+        )}
+      </AdminDrawer>
+
       {/* Doctor drawer */}
+
       <AdminDrawer
         open={!!editingDoctor}
         onClose={closeDrawers}
@@ -1399,10 +2041,12 @@ export default function AdminDashboard({
                 }
               />
             </AdminField>
-            <AdminField label={isRtl ? 'التخصص (عربي)' : 'Role (AR)'} error={fieldErrors['role.ar']}>
+            <AdminField
+              label={isRtl ? 'التخصص (عربي)' : 'Role (AR)'}
+              hint={isRtl ? 'اختياري' : 'Optional'}
+            >
               <AdminInput
                 value={editingDoctor.role?.ar || ''}
-                error={!!fieldErrors['role.ar']}
                 onChange={(e) =>
                   setEditingDoctor({
                     ...editingDoctor,
@@ -1411,10 +2055,12 @@ export default function AdminDashboard({
                 }
               />
             </AdminField>
-            <AdminField label={isRtl ? 'التخصص (إنجليزي)' : 'Role (EN)'} error={fieldErrors['role.en']}>
+            <AdminField
+              label={isRtl ? 'التخصص (إنجليزي)' : 'Role (EN)'}
+              hint={isRtl ? 'اختياري' : 'Optional'}
+            >
               <AdminInput
                 value={editingDoctor.role?.en || ''}
-                error={!!fieldErrors['role.en']}
                 onChange={(e) =>
                   setEditingDoctor({
                     ...editingDoctor,
@@ -1482,11 +2128,10 @@ export default function AdminDashboard({
             <AdminField
               className="md:col-span-2"
               label={isRtl ? 'التعليم (عربي)' : 'Education (AR)'}
-              error={fieldErrors['education.ar']}
+              hint={isRtl ? 'اختياري' : 'Optional'}
             >
               <AdminInput
                 value={editingDoctor.education?.ar || ''}
-                error={!!fieldErrors['education.ar']}
                 onChange={(e) =>
                   setEditingDoctor({
                     ...editingDoctor,
@@ -1498,11 +2143,10 @@ export default function AdminDashboard({
             <AdminField
               className="md:col-span-2"
               label={isRtl ? 'التعليم (إنجليزي)' : 'Education (EN)'}
-              error={fieldErrors['education.en']}
+              hint={isRtl ? 'اختياري' : 'Optional'}
             >
               <AdminInput
                 value={editingDoctor.education?.en || ''}
-                error={!!fieldErrors['education.en']}
                 onChange={(e) =>
                   setEditingDoctor({
                     ...editingDoctor,
@@ -1514,12 +2158,11 @@ export default function AdminDashboard({
             <AdminField
               className="md:col-span-2"
               label={isRtl ? 'السيرة (عربي)' : 'Bio (AR)'}
-              error={fieldErrors['bio.ar']}
+              hint={isRtl ? 'اختياري' : 'Optional'}
             >
               <AdminTextarea
                 rows={3}
                 value={editingDoctor.bio?.ar || ''}
-                error={!!fieldErrors['bio.ar']}
                 onChange={(e) =>
                   setEditingDoctor({
                     ...editingDoctor,
@@ -1531,12 +2174,11 @@ export default function AdminDashboard({
             <AdminField
               className="md:col-span-2"
               label={isRtl ? 'السيرة (إنجليزي)' : 'Bio (EN)'}
-              error={fieldErrors['bio.en']}
+              hint={isRtl ? 'اختياري' : 'Optional'}
             >
               <AdminTextarea
                 rows={3}
                 value={editingDoctor.bio?.en || ''}
-                error={!!fieldErrors['bio.en']}
                 onChange={(e) =>
                   setEditingDoctor({
                     ...editingDoctor,
@@ -1545,6 +2187,351 @@ export default function AdminDashboard({
                 }
               />
             </AdminField>
+          </form>
+        )}
+      </AdminDrawer>
+
+      {/* Service drawer */}
+      <AdminDrawer
+        open={!!editingService}
+        onClose={closeDrawers}
+        title={
+          editingService?.id
+            ? isRtl
+              ? 'تعديل الخدمة'
+              : 'Edit Service'
+            : isRtl
+              ? 'إضافة خدمة'
+              : 'Add Service'
+        }
+        subtitle={isRtl ? 'تخصصات العيادة الظاهرة للزوار' : 'Clinic specialties shown on the site'}
+        footer={drawerFooter('admin-service-form', closeDrawers, isRtl ? 'حفظ الخدمة' : 'Save Service')}
+      >
+        {editingService && (
+          <form id="admin-service-form" onSubmit={saveService} className="grid grid-cols-1 gap-5 md:grid-cols-2" noValidate>
+            <AdminField label={isRtl ? 'العنوان (عربي)' : 'Title (AR)'} error={fieldErrors['title.ar']}>
+              <AdminInput
+                value={editingService.title?.ar || ''}
+                error={!!fieldErrors['title.ar']}
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    title: { ar: e.target.value, en: editingService.title?.en || '' },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField label={isRtl ? 'العنوان (إنجليزي)' : 'Title (EN)'} error={fieldErrors['title.en']}>
+              <AdminInput
+                value={editingService.title?.en || ''}
+                error={!!fieldErrors['title.en']}
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    title: { ar: editingService.title?.ar || '', en: e.target.value },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField
+              className="md:col-span-2"
+              label={isRtl ? 'الوصف (عربي)' : 'Description (AR)'}
+              error={fieldErrors['description.ar']}
+            >
+              <AdminTextarea
+                rows={2}
+                value={editingService.description?.ar || ''}
+                error={!!fieldErrors['description.ar']}
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    description: { ar: e.target.value, en: editingService.description?.en || '' },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField
+              className="md:col-span-2"
+              label={isRtl ? 'الوصف (إنجليزي)' : 'Description (EN)'}
+              error={fieldErrors['description.en']}
+            >
+              <AdminTextarea
+                rows={2}
+                value={editingService.description?.en || ''}
+                error={!!fieldErrors['description.en']}
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    description: { ar: editingService.description?.ar || '', en: e.target.value },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminDropzone
+              image={editingService.image}
+              onSet={(dataUrl) => {
+                setEditingService({ ...editingService, image: dataUrl });
+                if (fieldErrors.image) setFieldErrors((prev) => ({ ...prev, image: '' }));
+              }}
+              onClear={() => setEditingService({ ...editingService, image: '' })}
+              label={isRtl ? 'صورة الخدمة' : 'Service image'}
+              error={fieldErrors.image}
+              isRtl={isRtl}
+            />
+            <AdminField label={isRtl ? 'المدة (عربي)' : 'Duration (AR)'} hint={isRtl ? 'اختياري' : 'Optional'}>
+              <AdminInput
+                value={editingService.duration?.ar || ''}
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    duration: { ar: e.target.value, en: editingService.duration?.en || '' },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField label={isRtl ? 'المدة (إنجليزي)' : 'Duration (EN)'} hint={isRtl ? 'اختياري' : 'Optional'}>
+              <AdminInput
+                value={editingService.duration?.en || ''}
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    duration: { ar: editingService.duration?.ar || '', en: e.target.value },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField
+              className="md:col-span-2"
+              label={isRtl ? 'التفاصيل (عربي، سطر لكل نقطة)' : 'Details (AR, one per line)'}
+              hint={isRtl ? 'اختياري' : 'Optional'}
+            >
+              <AdminTextarea
+                rows={4}
+                value={
+                  Array.isArray(editingService.details?.ar)
+                    ? editingService.details.ar.join('\n')
+                    : String(editingService.details?.ar || '')
+                }
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    details: {
+                      ar: e.target.value as unknown as string[],
+                      en: editingService.details?.en || [],
+                    },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField
+              className="md:col-span-2"
+              label={isRtl ? 'التفاصيل (إنجليزي، سطر لكل نقطة)' : 'Details (EN, one per line)'}
+              hint={isRtl ? 'اختياري' : 'Optional'}
+            >
+              <AdminTextarea
+                rows={4}
+                value={
+                  Array.isArray(editingService.details?.en)
+                    ? editingService.details.en.join('\n')
+                    : String(editingService.details?.en || '')
+                }
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    details: {
+                      ar: editingService.details?.ar || [],
+                      en: e.target.value as unknown as string[],
+                    },
+                  })
+                }
+              />
+            </AdminField>
+          </form>
+        )}
+      </AdminDrawer>
+
+      {/* Testimonial drawer */}
+      <AdminDrawer
+        open={!!editingTestimonial}
+        onClose={closeDrawers}
+        title={
+          editingTestimonial?.id
+            ? isRtl
+              ? 'تعديل التقييم'
+              : 'Edit Review'
+            : isRtl
+              ? 'إضافة تقييم'
+              : 'Add Review'
+        }
+        subtitle={isRtl ? 'آراء العملاء الظاهرة في الموقع' : 'Guest reviews shown on the site'}
+        footer={drawerFooter('admin-testimonial-form', closeDrawers, isRtl ? 'حفظ التقييم' : 'Save Review')}
+      >
+        {editingTestimonial && (
+          <form
+            id="admin-testimonial-form"
+            onSubmit={saveTestimonial}
+            className="grid grid-cols-1 gap-5 md:grid-cols-2"
+            noValidate
+          >
+            <AdminField label={isRtl ? 'الاسم (عربي)' : 'Name (AR)'} error={fieldErrors['name.ar']}>
+              <AdminInput
+                value={editingTestimonial.name?.ar || ''}
+                error={!!fieldErrors['name.ar']}
+                onChange={(e) =>
+                  setEditingTestimonial({
+                    ...editingTestimonial,
+                    name: { ar: e.target.value, en: editingTestimonial.name?.en || '' },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField label={isRtl ? 'الاسم (إنجليزي)' : 'Name (EN)'} error={fieldErrors['name.en']}>
+              <AdminInput
+                value={editingTestimonial.name?.en || ''}
+                error={!!fieldErrors['name.en']}
+                onChange={(e) =>
+                  setEditingTestimonial({
+                    ...editingTestimonial,
+                    name: { ar: editingTestimonial.name?.ar || '', en: e.target.value },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField label={isRtl ? 'التقييم (١–٥)' : 'Rating (1–5)'} error={fieldErrors.rating}>
+              <AdminSelect
+                value={String(editingTestimonial.rating || 5)}
+                error={!!fieldErrors.rating}
+                onChange={(e) =>
+                  setEditingTestimonial({
+                    ...editingTestimonial,
+                    rating: Number(e.target.value),
+                  })
+                }
+              >
+                {[5, 4, 3, 2, 1].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </AdminSelect>
+            </AdminField>
+            <AdminField label={isRtl ? 'التاريخ' : 'Date'} hint={isRtl ? 'اختياري' : 'Optional'}>
+              <AdminInput
+                type="date"
+                value={editingTestimonial.date || ''}
+                onChange={(e) => setEditingTestimonial({ ...editingTestimonial, date: e.target.value })}
+              />
+            </AdminField>
+            <AdminDropzone
+              image={editingTestimonial.image}
+              onSet={(dataUrl) => {
+                setEditingTestimonial({ ...editingTestimonial, image: dataUrl });
+                if (fieldErrors.image) setFieldErrors((prev) => ({ ...prev, image: '' }));
+              }}
+              onClear={() => setEditingTestimonial({ ...editingTestimonial, image: '' })}
+              label={isRtl ? 'صورة العميل' : 'Guest photo'}
+              error={fieldErrors.image}
+              isRtl={isRtl}
+            />
+            <p className="-mt-2 text-[11px] text-muted md:col-span-2">
+              {isRtl
+                ? 'اختياري — إن لم تُرفع صورة يُعرض الحرف الأول من الاسم'
+                : 'Optional — if empty, the first letter of the name is shown'}
+            </p>
+            <AdminField label={isRtl ? 'العلاج (عربي)' : 'Treatment (AR)'} hint={isRtl ? 'اختياري' : 'Optional'}>
+              <AdminInput
+                value={editingTestimonial.treatment?.ar || ''}
+                onChange={(e) =>
+                  setEditingTestimonial({
+                    ...editingTestimonial,
+                    treatment: { ar: e.target.value, en: editingTestimonial.treatment?.en || '' },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField label={isRtl ? 'العلاج (إنجليزي)' : 'Treatment (EN)'} hint={isRtl ? 'اختياري' : 'Optional'}>
+              <AdminInput
+                value={editingTestimonial.treatment?.en || ''}
+                onChange={(e) =>
+                  setEditingTestimonial({
+                    ...editingTestimonial,
+                    treatment: { ar: editingTestimonial.treatment?.ar || '', en: e.target.value },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField
+              className="md:col-span-2"
+              label={isRtl ? 'التعليق (عربي)' : 'Comment (AR)'}
+              error={fieldErrors['comment.ar']}
+            >
+              <AdminTextarea
+                rows={3}
+                value={editingTestimonial.comment?.ar || ''}
+                error={!!fieldErrors['comment.ar']}
+                onChange={(e) =>
+                  setEditingTestimonial({
+                    ...editingTestimonial,
+                    comment: { ar: e.target.value, en: editingTestimonial.comment?.en || '' },
+                  })
+                }
+              />
+            </AdminField>
+            <AdminField
+              className="md:col-span-2"
+              label={isRtl ? 'التعليق (إنجليزي)' : 'Comment (EN)'}
+              error={fieldErrors['comment.en']}
+            >
+              <AdminTextarea
+                rows={3}
+                value={editingTestimonial.comment?.en || ''}
+                error={!!fieldErrors['comment.en']}
+                onChange={(e) =>
+                  setEditingTestimonial({
+                    ...editingTestimonial,
+                    comment: { ar: editingTestimonial.comment?.ar || '', en: e.target.value },
+                  })
+                }
+              />
+            </AdminField>
+          </form>
+        )}
+      </AdminDrawer>
+
+      {/* Vision images drawer */}
+      <AdminDrawer
+        open={!!editingVision}
+        onClose={closeDrawers}
+        title={isRtl ? 'صور رؤيتنا' : 'Vision Images'}
+        subtitle={isRtl ? 'الصورتان بعد الهيرو مباشرة' : 'The two photos right after the hero'}
+        footer={drawerFooter('admin-vision-form', closeDrawers, isRtl ? 'حفظ الصور' : 'Save Images')}
+      >
+        {editingVision && (
+          <form id="admin-vision-form" onSubmit={saveVision} className="grid grid-cols-1 gap-5" noValidate>
+            <AdminDropzone
+              image={editingVision.imagePrimary}
+              onSet={(dataUrl) => {
+                setEditingVision({ ...editingVision, imagePrimary: dataUrl });
+                if (fieldErrors.imagePrimary) setFieldErrors((prev) => ({ ...prev, imagePrimary: '' }));
+              }}
+              onClear={() => setEditingVision({ ...editingVision, imagePrimary: '' })}
+              label={isRtl ? 'الصورة الرئيسية (كبيرة)' : 'Primary image (large)'}
+              error={fieldErrors.imagePrimary}
+              isRtl={isRtl}
+            />
+            <AdminDropzone
+              image={editingVision.imageSecondary}
+              onSet={(dataUrl) => {
+                setEditingVision({ ...editingVision, imageSecondary: dataUrl });
+                if (fieldErrors.imageSecondary) {
+                  setFieldErrors((prev) => ({ ...prev, imageSecondary: '' }));
+                }
+              }}
+              onClear={() => setEditingVision({ ...editingVision, imageSecondary: '' })}
+              label={isRtl ? 'الصورة الثانوية' : 'Secondary image'}
+              error={fieldErrors.imageSecondary}
+              isRtl={isRtl}
+            />
           </form>
         )}
       </AdminDrawer>
@@ -1677,7 +2664,7 @@ export default function AdminDashboard({
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 gap-px bg-ink/10 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-px bg-ink/10 sm:grid-cols-3 lg:grid-cols-3">
                 {[
                   {
                     label: isRtl ? 'مقالات' : 'Articles',
@@ -1696,6 +2683,24 @@ export default function AdminDashboard({
                     count: doctors.length,
                     icon: <Users size={16} />,
                     tab: 'team' as AdminTab,
+                  },
+                  {
+                    label: isRtl ? 'خدمات' : 'Services',
+                    count: services.length,
+                    icon: <Sparkles size={16} />,
+                    tab: 'services' as AdminTab,
+                  },
+                  {
+                    label: isRtl ? 'تقييمات' : 'Ratings',
+                    count: testimonials.length,
+                    icon: <Star size={16} />,
+                    tab: 'testimonials' as AdminTab,
+                  },
+                  {
+                    label: isRtl ? 'صور الرؤية' : 'Vision',
+                    count: 2,
+                    icon: <ScanEye size={16} />,
+                    tab: 'vision' as AdminTab,
                   },
                 ].map((stat) => (
                   <button
@@ -1732,6 +2737,18 @@ export default function AdminDashboard({
                   <button type="button" onClick={() => openDoctorDrawer()} className={btnGhost}>
                     <Plus size={13} />
                     {isRtl ? 'طبيب جديد' : 'New doctor'}
+                  </button>
+                  <button type="button" onClick={() => openServiceDrawer()} className={btnGhost}>
+                    <Plus size={13} />
+                    {isRtl ? 'خدمة جديدة' : 'New service'}
+                  </button>
+                  <button type="button" onClick={() => openTestimonialDrawer()} className={btnGhost}>
+                    <Plus size={13} />
+                    {isRtl ? 'تقييم جديد' : 'New review'}
+                  </button>
+                  <button type="button" onClick={() => openVisionEditor()} className={btnGhost}>
+                    <Edit3 size={13} />
+                    {isRtl ? 'صور الرؤية' : 'Vision images'}
                   </button>
                 </div>
               </div>
@@ -1821,7 +2838,53 @@ export default function AdminDashboard({
 
           {/* Gallery grid */}
           {activeTab === 'gallery' && (
-            <div className="mx-auto max-w-5xl space-y-6">
+            <div className="mx-auto max-w-5xl space-y-8">
+              <div className="border border-ink/10 bg-bg-warm/25 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[12px] font-medium uppercase tracking-wider text-bronze">
+                      {isRtl ? 'تصنيفات المعرض' : 'Gallery categories'}
+                    </p>
+                    <p className="mt-1 text-[13px] text-muted">
+                      {isRtl
+                        ? 'أضف أو عدّل التصنيفات التي تظهر كفلاتر في الموقع.'
+                        : 'Add or edit the filters shown on the public gallery.'}
+                    </p>
+                  </div>
+                  <button type="button" className={btnGhost} onClick={() => openCategoryEditor()}>
+                    <Plus size={14} />
+                    {isRtl ? 'تصنيف جديد' : 'New category'}
+                  </button>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {galleryCategories.map((cat) => (
+                    <div
+                      key={cat.id}
+                      className="inline-flex items-center gap-2 border border-ink/10 bg-bg-light px-3 py-2 text-[12px]"
+                    >
+                      <span className="font-medium text-ink">{cat.label[lang]}</span>
+                      <span className="text-muted">/{cat.id}</span>
+                      <button
+                        type="button"
+                        className={btnIcon}
+                        onClick={() => openCategoryEditor(cat)}
+                        title={isRtl ? 'تعديل' : 'Edit'}
+                      >
+                        <Edit3 size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className={btnIcon}
+                        onClick={() => deleteCategory(cat.id)}
+                        title={isRtl ? 'حذف' : 'Delete'}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {sectionHeader(
                 isRtl ? 'معرض الصور' : 'Gallery',
                 isRtl ? 'صور العيادة وحالات الابتسامة.' : 'Clinic photography and smile cases.',
@@ -1852,51 +2915,48 @@ export default function AdminDashboard({
                 )
               ) : (
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-                  {filteredGallery.map((item) => (
-                    <div
-                      key={item.id}
-                      className="group relative overflow-hidden border border-ink/10 bg-white"
-                    >
-                      <div className="aspect-[4/3] overflow-hidden bg-bg-warm">
-                        <img
-                          src={item.image}
-                          alt={item.title[lang]}
-                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-                          referrerPolicy="no-referrer"
-                        />
+                  {filteredGallery.map((item) => {
+                    const cat = galleryCategories.find((c) => c.id === item.category);
+                    return (
+                      <div
+                        key={item.id}
+                        className="group relative overflow-hidden border border-ink/10 bg-white"
+                      >
+                        <div className="aspect-[4/3] overflow-hidden bg-bg-warm">
+                          <img
+                            src={item.image}
+                            alt={item.title[lang]}
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <div className="space-y-1 border-t border-ink/10 p-3">
+                          <p className="truncate text-[13px] font-medium text-ink">{item.title[lang]}</p>
+                          <p className="text-[10px] uppercase tracking-wider text-bronze">
+                            {cat?.label[lang] || item.category}
+                          </p>
+                        </div>
+                        <div className="absolute end-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => openGalleryDrawer(item)}
+                            className="flex h-8 w-8 items-center justify-center border border-ink/10 bg-bg-light/95 text-ink shadow-sm"
+                            title={isRtl ? 'تعديل' : 'Edit'}
+                          >
+                            <Edit3 size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteGallery(item.id)}
+                            className="flex h-8 w-8 items-center justify-center border border-red-200 bg-bg-light/95 text-red-600 shadow-sm"
+                            title={isRtl ? 'حذف' : 'Delete'}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
-                      <div className="space-y-1 border-t border-ink/10 p-3">
-                        <p className="truncate text-[13px] font-medium text-ink">{item.title[lang]}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-bronze">
-                          {item.category === 'clinic'
-                            ? isRtl
-                              ? 'عيادة'
-                              : 'Clinic'
-                            : isRtl
-                              ? 'حالة'
-                              : 'Case'}
-                        </p>
-                      </div>
-                      <div className="absolute end-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
-                        <button
-                          type="button"
-                          onClick={() => openGalleryDrawer(item)}
-                          className="flex h-8 w-8 items-center justify-center border border-ink/10 bg-bg-light/95 text-ink shadow-sm"
-                          title={isRtl ? 'تعديل' : 'Edit'}
-                        >
-                          <Edit3 size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteGallery(item.id)}
-                          className="flex h-8 w-8 items-center justify-center border border-red-200 bg-bg-light/95 text-red-600 shadow-sm"
-                          title={isRtl ? 'حذف' : 'Delete'}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1979,6 +3039,223 @@ export default function AdminDashboard({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Services */}
+          {activeTab === 'services' && (
+            <div className="mx-auto max-w-5xl space-y-6">
+              {sectionHeader(
+                isRtl ? 'الخدمات والتخصصات' : 'Services & Specialties',
+                isRtl ? 'إدارة بطاقات التخصصات بعد قسم الرؤية.' : 'Manage specialty cards after the vision section.',
+                isRtl ? 'إضافة خدمة' : 'Add service',
+                () => openServiceDrawer(),
+                servicesQuery,
+                setServicesQuery,
+                isRtl ? 'بحث في الخدمات...' : 'Search services...'
+              )}
+
+              {filteredServices.length === 0 ? (
+                emptyState(
+                  <Sparkles size={22} />,
+                  servicesQuery
+                    ? isRtl
+                      ? 'لا نتائج'
+                      : 'No matches'
+                    : isRtl
+                      ? 'لا توجد خدمات'
+                      : 'No services yet',
+                  servicesQuery
+                    ? isRtl
+                      ? 'جرّب كلمات بحث أخرى.'
+                      : 'Try a different search term.'
+                    : isRtl
+                      ? 'أضف أول تخصص للعيادة.'
+                      : 'Add the first clinic specialty.'
+                )
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {filteredServices.map((service) => (
+                    <div
+                      key={service.id}
+                      className="flex flex-col border border-ink/10 bg-white transition hover:border-ink/25"
+                    >
+                      <div className="aspect-[16/10] overflow-hidden bg-bg-warm">
+                        <img
+                          src={service.image || IMAGES.placeholders.case}
+                          alt={service.title[lang]}
+                          className="h-full w-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                      <div className="flex flex-1 flex-col gap-2 p-4">
+                        <h3 className="font-display text-lg text-ink">{service.title[lang]}</h3>
+                        <p className="line-clamp-2 text-[12px] leading-relaxed text-muted">
+                          {service.description[lang]}
+                        </p>
+                        <div className="mt-auto flex items-center gap-2 pt-3">
+                          <button
+                            type="button"
+                            onClick={() => openServiceDrawer(service)}
+                            className={cn(btnGhost, 'flex-1 py-2 text-[12px]')}
+                          >
+                            <Edit3 size={13} />
+                            {isRtl ? 'تعديل' : 'Edit'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteService(service.id)}
+                            className={cn(btnIcon, 'text-red-600 hover:border-red-300')}
+                            title={isRtl ? 'حذف' : 'Delete'}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Testimonials / ratings */}
+          {activeTab === 'testimonials' && (
+            <div className="mx-auto max-w-5xl space-y-6">
+              {sectionHeader(
+                isRtl ? 'تقييمات العملاء' : 'Customer Ratings',
+                isRtl ? 'آراء الضيوف الظاهرة في الموقع.' : 'Guest reviews shown on the public site.',
+                isRtl ? 'إضافة تقييم' : 'Add review',
+                () => openTestimonialDrawer(),
+                testimonialsQuery,
+                setTestimonialsQuery,
+                isRtl ? 'بحث في التقييمات...' : 'Search reviews...'
+              )}
+
+              {filteredTestimonials.length === 0 ? (
+                emptyState(
+                  <Star size={22} />,
+                  testimonialsQuery
+                    ? isRtl
+                      ? 'لا نتائج'
+                      : 'No matches'
+                    : isRtl
+                      ? 'لا توجد تقييمات'
+                      : 'No reviews yet',
+                  testimonialsQuery
+                    ? isRtl
+                      ? 'جرّب كلمات بحث أخرى.'
+                      : 'Try a different search term.'
+                    : isRtl
+                      ? 'أضف أول تقييم عميل.'
+                      : 'Add the first guest review.'
+                )
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredTestimonials.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex flex-col border border-ink/10 bg-white transition hover:border-ink/25"
+                    >
+                      <div className="aspect-[5/3] overflow-hidden bg-bg-warm">
+                        {item.image?.trim() ? (
+                          <img
+                            src={item.image}
+                            alt={item.name[lang]}
+                            className="h-full w-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-bronze/15">
+                            <span className="font-display text-5xl text-bronze">
+                              {(item.name[lang] || item.name.en || item.name.ar || '?')
+                                .trim()
+                                .charAt(0)
+                                .toLocaleUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-1 flex-col gap-2 p-4">
+                        <div className="flex gap-0.5 text-gold">
+                          {Array.from({ length: item.rating }).map((_, i) => (
+                            <Star key={i} size={12} fill="currentColor" />
+                          ))}
+                        </div>
+                        <h3 className="font-display text-base text-ink">{item.name[lang]}</h3>
+                        <p className="line-clamp-3 text-[12px] leading-relaxed text-muted">
+                          {item.comment[lang]}
+                        </p>
+                        <div className="mt-auto flex items-center gap-2 pt-3">
+                          <button
+                            type="button"
+                            onClick={() => openTestimonialDrawer(item)}
+                            className={cn(btnGhost, 'flex-1 py-2 text-[12px]')}
+                          >
+                            <Edit3 size={13} />
+                            {isRtl ? 'تعديل' : 'Edit'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteTestimonial(item.id)}
+                            className={cn(btnIcon, 'text-red-600 hover:border-red-300')}
+                            title={isRtl ? 'حذف' : 'Delete'}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Vision images */}
+          {activeTab === 'vision' && (
+            <div className="mx-auto max-w-4xl space-y-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="font-display text-2xl tracking-tight text-ink">
+                    {isRtl ? 'صور رؤيتنا' : 'Vision Images'}
+                  </h2>
+                  <p className="mt-1 text-[13px] text-muted">
+                    {isRtl
+                      ? 'الصورتان في قسم «رؤيتنا» مباشرة بعد الهيرو.'
+                      : 'The two photos in the Our Vision section right after the hero.'}
+                  </p>
+                </div>
+                <button type="button" onClick={() => openVisionEditor()} className={btnPrimary}>
+                  <Edit3 size={14} />
+                  {isRtl ? 'تعديل الصور' : 'Edit images'}
+                </button>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-12">
+                <div className="overflow-hidden border border-ink/10 bg-white md:col-span-8">
+                  <img
+                    src={visionImages.imagePrimary || IMAGES.about}
+                    alt=""
+                    className="aspect-[16/10] w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <p className="border-t border-ink/10 px-4 py-3 text-[12px] text-muted">
+                    {isRtl ? 'الصورة الرئيسية' : 'Primary image'}
+                  </p>
+                </div>
+                <div className="overflow-hidden border border-ink/10 bg-white md:col-span-4">
+                  <img
+                    src={visionImages.imageSecondary || IMAGES.heroAlt}
+                    alt=""
+                    className="aspect-[4/5] w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <p className="border-t border-ink/10 px-4 py-3 text-[12px] text-muted">
+                    {isRtl ? 'الصورة الثانوية' : 'Secondary image'}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </main>

@@ -6,11 +6,13 @@ import logoAlmaali from '../assets/images/logo_almaali.png';
 import masarLogo from '../assets/images/masarlogo.png';
 import lobbyLocal from '../assets/images/luxury_clinic_lobby_1782557901585.jpg';
 import suiteLocal from '../assets/images/luxury_treatment_room_1782557916125.jpg';
+import heroLocal from '../assets/images/almaali-hero.webp';
 
 const u = (id: string, w = 1600) =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=80`;
 
 export const STOCK = {
+  hero: heroLocal,
   clinicLobby: lobbyLocal,
   treatmentSuite: suiteLocal,
   clinicModern: u('photo-1629909613654-28e377c37b09'),
@@ -43,7 +45,7 @@ export const STOCK = {
 export const IMAGES = {
   logo: logoAlmaali,
   masarLogo,
-  hero: STOCK.clinicLobby,
+  hero: STOCK.hero,
   heroSecondary: STOCK.heroOverlay,
   heroAlt: STOCK.treatmentSuite,
   about: STOCK.clinicModern,
@@ -77,10 +79,10 @@ export function resolveImage(src?: string | null, fallback: string = IMAGES.plac
 }
 
 export const WHATSAPP = {
-  number: '966114889000',
-  href: 'https://wa.me/966114889000',
-  phoneDisplay: '+966 11 488 9000',
-  tel: 'tel:+966114889000',
+  number: '971521645368',
+  href: 'https://wa.me/971521645368',
+  phoneDisplay: '+971 52 164 5368',
+  tel: 'tel:+971521645368',
 } as const;
 
 export function whatsappDoctorMessage(doctorName: string, lang: 'ar' | 'en') {

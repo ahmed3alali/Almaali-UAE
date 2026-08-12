@@ -4,7 +4,9 @@
  */
 
 import { createClient, type AuthChangeEvent, type Session } from '@supabase/supabase-js';
-import { BlogPost, GalleryItem, Doctor } from '../types';
+import { BlogPost, GalleryItem, GalleryCategory, Doctor, Service, Testimonial, VisionImages } from '../types';
+import { DEFAULT_GALLERY_CATEGORIES } from './galleryCategories';
+import { DEFAULT_SERVICES, DEFAULT_TESTIMONIALS, DEFAULT_VISION_IMAGES } from './contentDefaults';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -174,18 +176,59 @@ export function onAuthStateChange(
 
 const STORAGE_BUCKET = 'almaali-images';
 
+/** Ensure public media bucket is usable (call while admin is authenticated). */
+export async function ensureStorageBucket(): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: 'Supabase not configured' };
+  try {
+    // listBuckets is often blocked for anon/authenticated roles — probe with a tiny upload instead
+    const { data: buckets } = await supabase.storage.listBuckets();
+    if ((buckets || []).some((b) => b.name === STORAGE_BUCKET)) {
+      return { ok: true, message: 'exists' };
+    }
+
+    const { error: createError } = await supabase.storage.createBucket(STORAGE_BUCKET, {
+      public: true,
+      fileSizeLimit: 10 * 1024 * 1024,
+      allowedMimeTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'],
+    });
+
+    // Probe write — bucket may already exist even when list/create is RLS-blocked
+    const probePath = `_probe/${Date.now()}.txt`;
+    const { error: probeError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(probePath, new Blob(['ok'], { type: 'text/plain' }), {
+        upsert: true,
+        contentType: 'text/plain',
+      });
+
+    if (!probeError) {
+      await supabase.storage.from(STORAGE_BUCKET).remove([probePath]);
+      return { ok: true, message: createError ? 'usable' : 'created' };
+    }
+
+    return {
+      ok: false,
+      message: createError?.message || probeError.message,
+    };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'bucket error' };
+  }
+}
+
 export async function uploadBase64Image(base64DataUrl: string, folder: string, fileName: string): Promise<string | null> {
   if (!supabase) return null;
   try {
+    await ensureStorageBucket();
+
     const res = await fetch(base64DataUrl);
     const blob = await res.blob();
-    const ext = blob.type.split('/')[1] || 'png';
+    const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
     const path = `${folder}/${fileName}.${ext}`;
-    const file = new File([blob], `${fileName}.${ext}`, { type: blob.type });
+    const file = new File([blob], `${fileName}.${ext}`, { type: blob.type || 'image/jpeg' });
 
     const { error } = await supabase.storage
       .from(STORAGE_BUCKET)
-      .upload(path, file, { upsert: true, contentType: blob.type });
+      .upload(path, file, { upsert: true, contentType: blob.type || 'image/jpeg' });
 
     if (error) throw error;
 
@@ -264,22 +307,22 @@ export async function fetchBlogPostContent(postId: string): Promise<{ ar: string
   }
 }
 
-export async function saveBlogPostToSupabase(post: BlogPost): Promise<boolean> {
-  if (!supabase) return false;
+export async function saveBlogPostToSupabase(post: BlogPost): Promise<BlogPost | null> {
+  if (!supabase) return null;
   try {
     const image = await resolveStoredImage(post.image, 'blog', post.id);
-    if (image === null) return false;
+    const toSave: BlogPost = { ...post, image };
 
     const dbPayload = {
-      id: post.id,
-      title: post.title,
-      excerpt: post.excerpt,
-      content: post.content,
-      date: post.date,
-      read_time: post.readTime, // map camelCase to snake_case
-      category: post.category,
-      image,
-      author: post.author
+      id: toSave.id,
+      title: toSave.title,
+      excerpt: toSave.excerpt,
+      content: toSave.content,
+      date: toSave.date,
+      read_time: toSave.readTime,
+      category: toSave.category,
+      image: toSave.image,
+      author: toSave.author
     };
 
     const { error } = await supabase
@@ -290,10 +333,10 @@ export async function saveBlogPostToSupabase(post: BlogPost): Promise<boolean> {
       console.error('Error saving blog to Supabase:', error.message);
       throw error;
     }
-    return true;
+    return toSave;
   } catch (err) {
     console.error('Unhandled error in saveBlogPostToSupabase:', err);
-    return false;
+    return null;
   }
 }
 
@@ -327,7 +370,7 @@ export async function fetchGalleryItemsFromSupabase(): Promise<GalleryItem[] | n
       .from('gallery_items')
       .select('id, title, category, description')
       .order('created_at', { ascending: true })
-      .limit(50);
+      .limit(100);
 
     if (error) {
       console.error('[Supabase] Error fetching gallery_items:', error.message, error);
@@ -346,7 +389,7 @@ export async function fetchGalleryItemsFromSupabase(): Promise<GalleryItem[] | n
       .from('gallery_items')
       .select('id, image')
       .like('image', 'http%')
-      .limit(50);
+      .limit(100);
 
     const byId = new Map((imageRows || []).map((r) => [String(r.id), publicImageUrl(r.image)]));
     return items.map((item) => ({ ...item, image: byId.get(item.id) || '' }));
@@ -389,30 +432,30 @@ export async function hydrateGalleryImages(
   return next;
 }
 
-export async function saveGalleryItemToSupabase(item: GalleryItem): Promise<boolean> {
-  if (!supabase) return false;
+export async function saveGalleryItemToSupabase(item: GalleryItem): Promise<GalleryItem | null> {
+  if (!supabase) return null;
   try {
     const image = await resolveStoredImage(item.image, 'gallery', item.id);
-    if (image === null) return false;
+    const toSave: GalleryItem = { ...item, image };
 
     const { error } = await supabase
       .from('gallery_items')
       .upsert({
-        id: item.id,
-        title: item.title,
-        category: item.category,
-        image,
-        description: item.description
+        id: toSave.id,
+        title: toSave.title,
+        category: toSave.category,
+        image: toSave.image,
+        description: toSave.description
       }, { onConflict: 'id' });
 
     if (error) {
       console.error('Error saving gallery item to Supabase:', error.message);
       throw error;
     }
-    return true;
+    return toSave;
   } catch (err) {
     console.error('Unhandled error in saveGalleryItemToSupabase:', err);
-    return false;
+    return null;
   }
 }
 
@@ -433,6 +476,94 @@ export async function deleteGalleryItemFromSupabase(id: string): Promise<boolean
     console.error('Unhandled error in deleteGalleryItemFromSupabase:', err);
     return false;
   }
+}
+
+// --- GALLERY CATEGORIES ---
+
+export async function fetchGalleryCategoriesFromSupabase(): Promise<GalleryCategory[] | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('gallery_categories')
+      .select('id, label, sort_order')
+      .order('sort_order', { ascending: true })
+      .limit(100);
+
+    if (error) {
+      // Table may not exist yet — fall back silently
+      console.warn('[DB] gallery_categories fetch:', error.message);
+      return null;
+    }
+
+    const rows = (data || []).map((row, index) => ({
+      id: String(row.id),
+      label: asLocaleText(row.label),
+      sort: typeof row.sort_order === 'number' ? row.sort_order : index,
+    }));
+
+    return rows
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ id, label }) => ({ id, label }));
+  } catch (err) {
+    console.error('Unhandled error in fetchGalleryCategoriesFromSupabase:', err);
+    return null;
+  }
+}
+
+export async function saveGalleryCategoryToSupabase(
+  category: GalleryCategory,
+  sortOrder = 0
+): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase.from('gallery_categories').upsert(
+      {
+        id: category.id,
+        label: category.label,
+        sort_order: sortOrder,
+      },
+      { onConflict: 'id' }
+    );
+    if (error) {
+      console.error('Error saving gallery category:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Unhandled error in saveGalleryCategoryToSupabase:', err);
+    return false;
+  }
+}
+
+export async function deleteGalleryCategoryFromSupabase(id: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase.from('gallery_categories').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting gallery category:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Unhandled error in deleteGalleryCategoryFromSupabase:', err);
+    return false;
+  }
+}
+
+/** Seed defaults when the table is empty / first login. */
+export async function ensureDefaultGalleryCategories(): Promise<GalleryCategory[]> {
+  const remote = await fetchGalleryCategoriesFromSupabase();
+  if (remote && remote.length > 0) return remote;
+
+  if (supabase) {
+    for (let i = 0; i < DEFAULT_GALLERY_CATEGORIES.length; i++) {
+      await saveGalleryCategoryToSupabase(DEFAULT_GALLERY_CATEGORIES[i], i);
+    }
+    const seeded = await fetchGalleryCategoriesFromSupabase();
+    if (seeded && seeded.length > 0) return seeded;
+  }
+
+  return DEFAULT_GALLERY_CATEGORIES;
 }
 
 // --- TEAM/DOCTORS OPERATIONS ---
@@ -472,21 +603,23 @@ function publicImageUrl(image: unknown): string {
 }
 
 /**
- * Refuse to persist inline base64 in Postgres (it makes public reads multi‑second / multi‑MB).
- * Prefer Supabase Storage URLs from uploadBase64Image().
+ * Prefer Storage URLs. Never block the row save — if upload fails, store empty
+ * image (placeholders on the site) rather than aborting the whole CRUD upsert.
  */
 async function resolveStoredImage(
   image: string,
   folder: string,
   fileName: string
-): Promise<string | null> {
+): Promise<string> {
   if (!image) return '';
   if (image.startsWith('http://') || image.startsWith('https://')) return image;
   if (image.startsWith('data:')) {
     const uploaded = await uploadBase64Image(image, folder, fileName);
     if (uploaded) return uploaded;
-    console.error(`[DB] Refusing to store base64 image for ${folder}/${fileName} — upload failed`);
-    return null;
+    console.error(
+      `[DB] Image upload failed for ${folder}/${fileName} — saving record without image URL`
+    );
+    return '';
   }
   return image;
 }
@@ -515,7 +648,7 @@ export async function fetchDoctorsFromSupabase(): Promise<Doctor[] | null> {
       .from('doctors')
       .select('id, name, role, bio, specialties, education')
       .order('created_at', { ascending: true })
-      .limit(50);
+      .limit(100);
 
     let rows = metaQuery.data as Record<string, unknown>[] | null;
     let error = metaQuery.error;
@@ -525,7 +658,7 @@ export async function fetchDoctorsFromSupabase(): Promise<Doctor[] | null> {
       const retry = await supabase
         .from('doctors')
         .select('id, name, role, bio, specialties, education')
-        .limit(50);
+        .limit(100);
       rows = retry.data as Record<string, unknown>[] | null;
       error = retry.error;
     }
@@ -544,7 +677,7 @@ export async function fetchDoctorsFromSupabase(): Promise<Doctor[] | null> {
       .from('doctors')
       .select('id, image')
       .like('image', 'http%')
-      .limit(50);
+      .limit(100);
 
     if (imageError) {
       console.warn('[DB] doctor image URL fetch skipped:', imageError.message);
@@ -644,32 +777,32 @@ async function compressDataUrlForDisplay(dataUrl: string): Promise<string> {
   }
 }
 
-export async function saveDoctorToSupabase(doctor: Doctor): Promise<boolean> {
-  if (!supabase) return false;
+export async function saveDoctorToSupabase(doctor: Doctor): Promise<Doctor | null> {
+  if (!supabase) return null;
   try {
     const image = await resolveStoredImage(doctor.image, 'doctor', doctor.id);
-    if (image === null) return false;
+    const toSave: Doctor = { ...doctor, image };
 
     const { error } = await supabase
       .from('doctors')
       .upsert({
-        id: doctor.id,
-        name: doctor.name,
-        role: doctor.role,
-        bio: doctor.bio,
-        specialties: doctor.specialties,
-        education: doctor.education,
-        image,
+        id: toSave.id,
+        name: toSave.name,
+        role: toSave.role,
+        bio: toSave.bio,
+        specialties: toSave.specialties,
+        education: toSave.education,
+        image: toSave.image,
       }, { onConflict: 'id' });
 
     if (error) {
       console.error('Error saving doctor to Supabase:', error.message);
       throw error;
     }
-    return true;
+    return toSave;
   } catch (err) {
     console.error('Unhandled error in saveDoctorToSupabase:', err);
-    return false;
+    return null;
   }
 }
 
@@ -715,6 +848,8 @@ export async function migrateBase64ImagesToStorage(
     { name: 'blog_posts', folder: 'blog' },
     { name: 'gallery_items', folder: 'gallery' },
     { name: 'doctors', folder: 'doctors' },
+    { name: 'services', folder: 'services' },
+    { name: 'testimonials', folder: 'testimonials' },
   ] as const;
 
   for (const table of tables) {
@@ -765,5 +900,357 @@ export async function migrateBase64ImagesToStorage(
     if (tableBase64 === 0) log(`✅ ${table.name}: no base64 images`);
   }
 
+  // Vision images (single-row, two columns)
+  try {
+    const { data: visionRow } = await supabase
+      .from('vision_images')
+      .select('id, image_primary, image_secondary')
+      .eq('id', 'main')
+      .maybeSingle();
+
+    if (visionRow) {
+      for (const col of ['image_primary', 'image_secondary'] as const) {
+        const raw = visionRow[col];
+        if (typeof raw === 'string' && raw.startsWith('data:')) {
+          result.totalBase64++;
+          const folder = col === 'image_primary' ? 'vision-primary' : 'vision-secondary';
+          const url = await uploadBase64Image(raw, 'vision', folder);
+          if (!url) {
+            result.failed++;
+            log(`  ❌ vision.${col}: upload failed`);
+            continue;
+          }
+          const { error: updateErr } = await supabase
+            .from('vision_images')
+            .update({ [col]: url })
+            .eq('id', 'main');
+          if (updateErr) {
+            result.failed++;
+            log(`  ❌ vision.${col}: DB update failed — ${updateErr.message}`);
+          } else {
+            result.migrated++;
+            log(`  ✅ vision.${col}`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    log(`❌ vision_images: ${err instanceof Error ? err.message : 'error'}`);
+  }
+
   return result;
 }
+
+// --- SERVICES ---
+
+function mapServiceRow(row: Record<string, unknown>, imageOverride?: string): Service {
+  return {
+    id: String(row.id ?? ''),
+    iconName: typeof row.icon_name === 'string' && row.icon_name ? row.icon_name : 'Gem',
+    title: asLocaleText(row.title),
+    description: asLocaleText(row.description),
+    details: asLocaleList(row.details),
+    duration: asLocaleText(row.duration),
+    image: imageOverride ?? (publicImageUrl(row.image) || (
+      typeof row.image === 'string' && row.image.startsWith('data:') && row.image.length < 100_000
+        ? row.image
+        : ''
+    )),
+  };
+}
+
+export async function fetchServicesFromSupabase(): Promise<Service[] | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('services')
+      .select('id, icon_name, title, description, details, duration, image, sort_order')
+      .order('sort_order', { ascending: true })
+      .limit(50);
+
+    if (error) {
+      console.warn('[DB] fetchServices failed:', error.message);
+      return null;
+    }
+
+    return (data || [])
+      .map((row) => mapServiceRow(row as Record<string, unknown>))
+      .filter((s) => Boolean(s.id));
+  } catch (err) {
+    console.error('Unhandled error in fetchServicesFromSupabase:', err);
+    return null;
+  }
+}
+
+export async function saveServiceToSupabase(service: Service, sortOrder = 0): Promise<Service | null> {
+  if (!supabase) return null;
+  try {
+    const image = await resolveStoredImage(service.image, 'services', service.id);
+    const toSave: Service = { ...service, image };
+
+    const { error } = await supabase.from('services').upsert(
+      {
+        id: toSave.id,
+        icon_name: toSave.iconName || 'Gem',
+        title: toSave.title,
+        description: toSave.description,
+        details: toSave.details,
+        duration: toSave.duration,
+        image: toSave.image,
+        sort_order: sortOrder,
+      },
+      { onConflict: 'id' }
+    );
+
+    if (error) {
+      console.error('Error saving service to Supabase:', error.message);
+      throw error;
+    }
+    return toSave;
+  } catch (err) {
+    console.error('Unhandled error in saveServiceToSupabase:', err);
+    return null;
+  }
+}
+
+export async function deleteServiceFromSupabase(id: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase.from('services').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting service:', error.message);
+      throw error;
+    }
+    return true;
+  } catch (err) {
+    console.error('Unhandled error in deleteServiceFromSupabase:', err);
+    return false;
+  }
+}
+
+/** Seed static specialties when the table is empty. */
+export async function ensureDefaultServices(): Promise<Service[]> {
+  const remote = await fetchServicesFromSupabase();
+  if (remote && remote.length > 0) return remote;
+
+  if (supabase) {
+    for (let i = 0; i < DEFAULT_SERVICES.length; i++) {
+      await saveServiceToSupabase(DEFAULT_SERVICES[i], i);
+    }
+    const seeded = await fetchServicesFromSupabase();
+    if (seeded && seeded.length > 0) return seeded;
+  }
+
+  return DEFAULT_SERVICES;
+}
+
+// --- TESTIMONIALS / RATINGS ---
+
+function mapTestimonialRow(row: Record<string, unknown>): Testimonial {
+  const ratingRaw = typeof row.rating === 'number' ? row.rating : Number(row.rating);
+  const rating = Number.isFinite(ratingRaw) ? Math.min(5, Math.max(1, Math.round(ratingRaw))) : 5;
+  return {
+    id: String(row.id ?? ''),
+    name: asLocaleText(row.name),
+    rating,
+    comment: asLocaleText(row.comment),
+    treatment: asLocaleText(row.treatment),
+    date: typeof row.date === 'string' ? row.date : '',
+    image: publicImageUrl(row.image) || (
+      typeof row.image === 'string' && row.image.startsWith('data:') && row.image.length < 100_000
+        ? row.image
+        : ''
+    ),
+  };
+}
+
+export async function fetchTestimonialsFromSupabase(): Promise<Testimonial[] | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('testimonials')
+      .select('id, name, rating, comment, treatment, date, image, sort_order')
+      .order('sort_order', { ascending: true })
+      .limit(50);
+
+    if (error) {
+      console.warn('[DB] fetchTestimonials failed:', error.message);
+      return null;
+    }
+
+    return (data || [])
+      .map((row) => mapTestimonialRow(row as Record<string, unknown>))
+      .filter((t) => Boolean(t.id));
+  } catch (err) {
+    console.error('Unhandled error in fetchTestimonialsFromSupabase:', err);
+    return null;
+  }
+}
+
+export async function saveTestimonialToSupabase(
+  item: Testimonial,
+  sortOrder = 0
+): Promise<Testimonial | null> {
+  if (!supabase) return null;
+  try {
+    const image = await resolveStoredImage(item.image, 'testimonials', item.id);
+    const toSave: Testimonial = { ...item, image };
+
+    const { error } = await supabase.from('testimonials').upsert(
+      {
+        id: toSave.id,
+        name: toSave.name,
+        rating: toSave.rating,
+        comment: toSave.comment,
+        treatment: toSave.treatment,
+        date: toSave.date,
+        image: toSave.image,
+        sort_order: sortOrder,
+      },
+      { onConflict: 'id' }
+    );
+
+    if (error) {
+      console.error('Error saving testimonial to Supabase:', error.message);
+      throw error;
+    }
+    return toSave;
+  } catch (err) {
+    console.error('Unhandled error in saveTestimonialToSupabase:', err);
+    return null;
+  }
+}
+
+export async function deleteTestimonialFromSupabase(id: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase.from('testimonials').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting testimonial:', error.message);
+      throw error;
+    }
+    return true;
+  } catch (err) {
+    console.error('Unhandled error in deleteTestimonialFromSupabase:', err);
+    return false;
+  }
+}
+
+export async function ensureDefaultTestimonials(): Promise<Testimonial[]> {
+  const remote = await fetchTestimonialsFromSupabase();
+  const seedKey = 'almaali_testimonial_seed_v3';
+  let alreadySeeded = false;
+  try {
+    alreadySeeded = localStorage.getItem(seedKey) === '1';
+  } catch {
+    /* ignore */
+  }
+
+  const oldDemoNames = new Set([
+    'Khaled Bin Abdulrahman',
+    'Dr. Maryam Al-Qahtani',
+    'Rashid Al-Sudairy',
+  ]);
+  const looksLikeOldDemo =
+    !!remote &&
+    remote.length > 0 &&
+    remote.every((t) => oldDemoNames.has(t.name.en));
+
+  if (remote && remote.length > 0 && alreadySeeded && !looksLikeOldDemo) return remote;
+
+  if (supabase) {
+    for (let i = 0; i < DEFAULT_TESTIMONIALS.length; i++) {
+      await saveTestimonialToSupabase(DEFAULT_TESTIMONIALS[i], i);
+    }
+    try {
+      localStorage.setItem(seedKey, '1');
+    } catch {
+      /* ignore */
+    }
+    const seeded = await fetchTestimonialsFromSupabase();
+    if (seeded && seeded.length > 0) return seeded;
+  }
+
+  return DEFAULT_TESTIMONIALS;
+}
+
+// --- VISION / ABOUT IMAGES ---
+
+export async function fetchVisionImagesFromSupabase(): Promise<VisionImages | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('vision_images')
+      .select('image_primary, image_secondary')
+      .eq('id', 'main')
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[DB] fetchVisionImages failed:', error.message);
+      return null;
+    }
+    if (!data) return null;
+
+    const primary = publicImageUrl(data.image_primary) || (
+      typeof data.image_primary === 'string' && data.image_primary.startsWith('data:')
+        ? data.image_primary
+        : ''
+    );
+    const secondary = publicImageUrl(data.image_secondary) || (
+      typeof data.image_secondary === 'string' && data.image_secondary.startsWith('data:')
+        ? data.image_secondary
+        : ''
+    );
+
+    if (!primary && !secondary) return null;
+
+    return {
+      imagePrimary: primary || DEFAULT_VISION_IMAGES.imagePrimary,
+      imageSecondary: secondary || DEFAULT_VISION_IMAGES.imageSecondary,
+    };
+  } catch (err) {
+    console.error('Unhandled error in fetchVisionImagesFromSupabase:', err);
+    return null;
+  }
+}
+
+export async function saveVisionImagesToSupabase(vision: VisionImages): Promise<VisionImages | null> {
+  if (!supabase) return null;
+  try {
+    const imagePrimary = await resolveStoredImage(vision.imagePrimary, 'vision', 'primary');
+    const imageSecondary = await resolveStoredImage(vision.imageSecondary, 'vision', 'secondary');
+    const toSave: VisionImages = { imagePrimary, imageSecondary };
+
+    const { error } = await supabase.from('vision_images').upsert(
+      {
+        id: 'main',
+        image_primary: toSave.imagePrimary,
+        image_secondary: toSave.imageSecondary,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+
+    if (error) {
+      console.error('Error saving vision images:', error.message);
+      throw error;
+    }
+    return toSave;
+  } catch (err) {
+    console.error('Unhandled error in saveVisionImagesToSupabase:', err);
+    return null;
+  }
+}
+
+export async function ensureDefaultVisionImages(): Promise<VisionImages> {
+  const remote = await fetchVisionImagesFromSupabase();
+  if (remote && (remote.imagePrimary || remote.imageSecondary)) return remote;
+
+  if (supabase) {
+    const saved = await saveVisionImagesToSupabase(DEFAULT_VISION_IMAGES);
+    if (saved) return saved;
+  }
+
+  return DEFAULT_VISION_IMAGES;
+}
+
