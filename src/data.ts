@@ -4,8 +4,7 @@
  */
 
 import { Service, Doctor, Testimonial, GalleryItem, BlogPost } from './types';
-import g1Image from './assets/images/luxury_clinic_lobby_1782557901585.jpg';
-import g2Image from './assets/images/luxury_treatment_room_1782557916125.jpg';
+import { STOCK } from './lib/images';
 
 export const TRANSLATIONS = {
   ar: {
@@ -108,7 +107,7 @@ export const TRANSLATIONS = {
     bookingAddress: "العنوان:",
     bookingAddressValue: "طريق الملك عبد العزيز، حي الروضة الفاخر، دبي الإمارات",
     bookingPhone: "هاتف الاستقبال:",
-    bookingPhoneValue: "+967114889000",
+    bookingPhoneValue: "+966 11 488 9000",
     bookingEmail: "البريد الإلكتروني:",
     bookingEmailValue: "concierge@almaali.com",
     bookingHours: "أوقات الاستقبال:",
@@ -388,7 +387,7 @@ export const DOCTORS: Doctor[] = [
       ar: "زمالة الأكاديمية الأمريكية لتجميل الأسنان (AACD) - ماجستير طب الأسنان التجميلي من جامعة ساوثهامبتون.",
       en: "Fellow of the American Academy of Cosmetic Dentistry (AACD). MSc in Aesthetic Dentistry, University of Southampton."
     },
-    image: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=800&q=80"
+    image: STOCK.consultation
   },
   {
     id: "dr-alexander",
@@ -420,7 +419,7 @@ export const DOCTORS: Doctor[] = [
       ar: "البورد الألماني في زراعة الأسنان - دكتوراه في جراحة الفم والأسنان من جامعة هايدلبرغ العريقة.",
       en: "German Board in Implantology. PhD in Oral Maxillofacial Surgery, Heidelberg University."
     },
-    image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=800&q=80"
+    image: STOCK.surgeon
   },
   {
     id: "dr-layla",
@@ -452,7 +451,7 @@ export const DOCTORS: Doctor[] = [
       ar: "ماجستير تقويم الأسنان وعلاقات الفكين من جامعة باريس السادسة - مقوِّم معتمد دوليًا من Invisalign Diamond.",
       en: "MSc in Orthodontics and Dentofacial Orthopedics, Sorbonne University (Paris VI). Elite Invisalign Diamond Provider."
     },
-    image: "https://images.unsplash.com/photo-1594824813573-246434de83fb?auto=format&fit=crop&w=800&q=80"
+    image: STOCK.orthodontist
   }
 ];
 
@@ -518,7 +517,7 @@ export const GALLERY: GalleryItem[] = [
       en: "Our Luxury Guest Lounge"
     },
     category: "clinic",
-    image: g1Image,
+    image: STOCK.clinicLobby,
     description: {
       ar: "مصمم بمواد دافئة وخامات مريحة وحرص شديد على سلامة وهدوء الحواس.",
       en: "Crafted with warm natural textures and calming acoustic layouts to keep your senses tranquil."
@@ -531,7 +530,7 @@ export const GALLERY: GalleryItem[] = [
       en: "Consultation & Treatment Suite"
     },
     category: "clinic",
-    image: g2Image,
+    image: STOCK.treatmentSuite,
     description: {
       ar: "إطلالة مريحة مع دمج كامل للتقنيات ثلاثية الأبعاد والمجهرية دون إزعاج بصري.",
       en: "A beautiful, serene treatment view featuring integrated 3D micro-dental technology with zero visual clutter."
@@ -544,7 +543,7 @@ export const GALLERY: GalleryItem[] = [
       en: "Bespoke Full-Arch Smile Design Case"
     },
     category: "cases",
-    image: "https://images.unsplash.com/photo-1606811971618-4486d14f3f99?auto=format&fit=crop&w=800&q=80",
+    image: STOCK.smileClose,
     description: {
       ar: "تصميم عدسات مجهرية بلون طبيعي متناسق يتكامل مع خطوط الوجه الطبيعية وعظم الفك.",
       en: "Micro-veneers configured in standard warm ivory tones matching natural tooth transparency."
@@ -557,10 +556,36 @@ export const GALLERY: GalleryItem[] = [
       en: "Precision Aesthetic Restorative Session"
     },
     category: "cases",
-    image: "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?auto=format&fit=crop&w=800&q=80",
+    image: STOCK.veneers,
     description: {
       ar: "علاج تجميلي مجهري دقيق بأقل تدخل لترميم الحواف واستعادة بريق طبقة المينا الطبيعية.",
       en: "Microscopic dental carving aiming to restore absolute anatomical symmetry with minimalist tooth preparation."
+    }
+  },
+  {
+    id: "g5",
+    title: {
+      ar: "جناح الاسترخاء والرفاهية",
+      en: "Wellness Lounge Suite"
+    },
+    category: "clinic",
+    image: STOCK.spaDental,
+    description: {
+      ar: "مساحة هادئة صُممت لتهدئة الحواس قبل وبعد الجلسة العلاجية.",
+      en: "A calm lounge designed to soothe the senses before and after treatment."
+    }
+  },
+  {
+    id: "g6",
+    title: {
+      ar: "تفاصيل المجهر والقدرة الرقمية",
+      en: "Microscopy & Digital Precision"
+    },
+    category: "cases",
+    image: STOCK.microscope,
+    description: {
+      ar: "رؤية مجهرية فائقة تضمن حواف غير مرئية ونتائج تدوم.",
+      en: "Ultra-high magnification ensuring invisible margins and lasting results."
     }
   }
 ];
@@ -592,7 +617,7 @@ export const BLOG_POSTS: BlogPost[] = [
       ar: "تكنولوجيا طبية",
       en: "Technology"
     },
-    image: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=800&q=80",
+    image: STOCK.blogTech,
     author: {
       ar: "د. هبة المعالي",
       en: "Dr. Hiba Al Maali"
@@ -624,7 +649,7 @@ export const BLOG_POSTS: BlogPost[] = [
       ar: "طب الأسنان التجميلي",
       en: "Aesthetic Dentistry"
     },
-    image: "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?auto=format&fit=crop&w=800&q=80",
+    image: STOCK.blogAesthetic,
     author: {
       ar: "د. فيصل الشهري",
       en: "Dr. Faisal Al-Shehri"
@@ -656,7 +681,7 @@ export const BLOG_POSTS: BlogPost[] = [
       ar: "العناية والصحة",
       en: "Hygiene & Care"
     },
-    image: "https://images.unsplash.com/photo-1579684389782-64d84b5e901a?auto=format&fit=crop&w=800&q=80",
+    image: STOCK.blogCare,
     author: {
       ar: "د. هبة المعالي",
       en: "Dr. Hiba Al Maali"

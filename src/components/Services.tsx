@@ -4,22 +4,14 @@
  */
 
 import { useState } from 'react';
-import { 
-  Star,
-  ShieldCheck, 
-  Sun, 
-  RotateCw, 
-  Clock, 
-  ArrowLeft, 
-  ArrowRight,
-  Plus,
-  Minus,
-  Compass,
-  Gem
-} from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { ArrowUpRight, X } from 'lucide-react';
 import { Language } from '../types';
 import { SERVICES, TRANSLATIONS } from '../data';
-import { motion, AnimatePresence } from 'motion/react';
+import { IMAGES } from '../lib/images';
+import SectionReveal from './ui/SectionReveal';
+import SafeImage from './ui/SafeImage';
+import TextReveal from './ui/TextReveal';
 
 interface ServicesProps {
   lang: Language;
@@ -27,232 +19,139 @@ interface ServicesProps {
 
 export default function Services({ lang }: ServicesProps) {
   const t = TRANSLATIONS[lang];
-  const isRtl = lang === 'ar';
-  
-  // Track selected service ID to show detailed breakdown
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
-
-  // Helper to map icon names to actual Lucide Icon elements
-  const getIcon = (name: string, size = 20, className = "text-[#9c7049]") => {
-    switch (name) {
-      case 'ShieldCheck':
-        return <ShieldCheck size={size} className={className} />;
-      case 'Sun':
-        return <Sun size={size} className={className} />;
-      case 'RotateCw':
-        return <RotateCw size={size} className={className} />;
-      case 'Gem':
-        return <Gem size={size} className={className} />;
-      default:
-        return <Star size={size} className={className} />;
-    }
-  };
-
-  const activeService = SERVICES.find(s => s.id === selectedServiceId) || null;
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const active = SERVICES.find((s) => s.id === activeId) || null;
+  const reduced = useReducedMotion();
 
   return (
-    <section 
-      id="services" 
-      className="py-20 bg-[#d2b58b]/10 relative overflow-hidden border-t border-[#9c7049]/10"
-    >
-      {/* Curved signature decoration element */}
-      <div className="absolute top-0 right-0 w-full h-[60px] pointer-events-none overflow-hidden opacity-30">
-        <svg 
-          viewBox="0 0 1440 60" 
-          fill="none" 
-          xmlns="http://www.w3.org/2000/svg"
-          className="w-full h-full text-[#f0e8dd]"
-        >
-          <path d="M0 0H1440V40C1440 40 1080 0 720 0C360 0 0 40 0 40V0Z" fill="currentColor" />
-        </svg>
-      </div>
+    <section id="services" className="section-pad relative overflow-hidden bg-bg-warm/60">
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute -start-24 top-20 h-72 w-72 rounded-full bg-gold/15 blur-3xl"
+        animate={reduced ? undefined : { x: [0, 40, 0], y: [0, 30, 0] }}
+        transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+      />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        
-        {/* Section Header */}
-        <div className="text-center space-y-3 mb-16">
-          <span className="text-xs font-mono font-semibold tracking-widest text-[#9c7049] uppercase block">
-            {t.servicesSectionTitle}
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-display font-bold text-[#4e4033]">
-            {t.servicesSectionSubtitle}
-          </h2>
-          <div className="w-16 h-[1px] bg-[#9c7049] mx-auto mt-4" />
+      <div className="container-premium relative">
+        <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
+          <SectionReveal className="max-w-2xl">
+            <p className="text-eyebrow text-bronze">{t.servicesSectionTitle}</p>
+            <TextReveal
+              text={t.servicesSectionSubtitle}
+              className="mt-4 font-display text-display-sm text-ink"
+            />
+          </SectionReveal>
         </div>
 
-        {/* Master layout for services */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-stretch">
-          
-          {/* Left Grid: Elegant Cards list of Specialties */}
-          <div className={`lg:col-span-7 space-y-6 ${selectedServiceId ? 'hidden lg:block' : ''}`}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {SERVICES.map((service, idx) => {
-                const isSelected = selectedServiceId === service.id;
-                return (
-                  <motion.div
-                    key={service.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 0.95, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: idx * 0.1 }}
-                    whileHover={{ scale: 1.01 }}
-                    onClick={() => setSelectedServiceId(service.id)}
-                    className={`p-6 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between group h-full ${
-                      isSelected
-                        ? 'bg-[#4e4033] border-[#9c7049] text-[#f0e8dd] shadow-lg shadow-[#4e4033]/15'
-                        : 'bg-[#f0e8dd] hover:bg-[#d2b58b]/15 border-[#9c7049]/15 hover:border-[#9c7049]/50 text-[#4e4033]'
-                    }`}
-                    style={{ textAlign: isRtl ? 'right' : 'left' }}
-                  >
-                    <div>
-                      {/* Icon wrapper */}
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center border mb-6 transition-colors ${
-                        isSelected 
-                          ? 'bg-[#9c7049]/20 border-[#9c7049]' 
-                          : 'bg-[#d2b58b]/15 border-[#9c7049]/20 group-hover:bg-[#9c7049]/20'
-                      }`}>
-                        {getIcon(service.iconName, 22, isSelected ? 'text-[#d2b58b]' : 'text-[#9c7049]')}
-                      </div>
-
-                      {/* Title */}
-                      <h3 className={`text-lg sm:text-xl font-display font-bold mb-3 ${
-                        isSelected ? 'text-[#f0e8dd]' : 'text-[#4e4033]'
-                      }`}>
-                        {service.title[lang]}
-                      </h3>
-
-                      {/* Short summary description */}
-                      <p className={`text-xs sm:text-sm leading-relaxed mb-6 font-sans ${
-                        isSelected ? 'text-[#f0e8dd]/85' : 'text-[#4e4033]/75'
-                      }`}>
-                        {service.description[lang]}
-                      </p>
-                    </div>
-
-                    {/* interactive link element */}
-                    <div className="flex items-center gap-2 pt-2 text-xs font-mono font-medium tracking-wide">
-                      <span className={isSelected ? 'text-[#d2b58b]' : 'text-[#9c7049] group-hover:underline'}>
-                        {t.servicesCTA}
-                      </span>
-                      {isSelected ? (
-                        <Minus size={14} className="text-[#d2b58b]" />
-                      ) : (
-                        <Plus size={14} className="text-[#9c7049] group-hover:translate-x-1 transition-transform" />
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Right Area: Interactive Detail Drawer for the Selected Specialty */}
-          <div className="lg:col-span-5 h-full">
-            <AnimatePresence mode="wait">
-              {activeService ? (
-                <motion.div
-                  key={activeService.id}
-                  initial={{ opacity: 0, x: isRtl ? -20 : 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: isRtl ? -20 : 20 }}
-                  transition={{ duration: 0.4 }}
-                  className="bg-[#4e4033] text-[#f0e8dd] rounded-2xl p-8 border border-[#9c7049] shadow-xl flex flex-col justify-between h-full relative"
-                  style={{ textAlign: isRtl ? 'right' : 'left' }}
+        <div className="mt-14 grid gap-5 md:grid-cols-2">
+          {SERVICES.map((service, index) => {
+            const image = IMAGES.services[service.id] || IMAGES.placeholders.case;
+            return (
+              <SectionReveal key={service.id} delay={index * 0.08}>
+                <motion.button
+                  type="button"
+                  onClick={() => setActiveId(service.id)}
+                  className="group relative flex h-full min-h-[320px] w-full overflow-hidden rounded-[1.75rem] text-start md:min-h-[380px]"
+                  whileHover={reduced ? undefined : { y: -8 }}
+                  transition={{ type: 'spring', stiffness: 200, damping: 22 }}
                 >
-                  {/* Subtle Smile Accent Background Line */}
-                  <div className="absolute right-4 top-4 text-[#9c7049]/10 pointer-events-none">
-                    {getIcon(activeService.iconName, 120, 'text-[#9c7049]/10')}
-                  </div>
+                  <SafeImage
+                    src={image}
+                    alt={service.title[lang]}
+                    className="absolute inset-0 h-full w-full img-grade transition duration-700 ease-[var(--ease-out-expo)] group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-bg-dark via-bg-dark/55 to-bg-dark/15" />
+                  <div className="absolute inset-0 bg-bronze/0 transition duration-500 group-hover:bg-bronze/20" />
 
-                  <div>
-                    {/* Header line with go-back button for mobile view */}
-                    <div className="flex items-center justify-between border-b border-[#9c7049]/20 pb-4 mb-6">
-                      <div className="flex items-center gap-2">
-                        {getIcon(activeService.iconName, 22, 'text-[#d2b58b]')}
-                        <span className="text-xs font-mono tracking-widest text-[#d2b58b] uppercase">
-                          {activeService.id.replace('-', ' ')}
-                        </span>
-                      </div>
-                      
-                      {/* Back button only on smaller screens, always useful though */}
-                      <button
-                        onClick={() => setSelectedServiceId(null)}
-                        className="text-xs font-sans text-[#d2b58b] hover:text-[#f0e8dd] flex items-center gap-1 cursor-pointer transition-colors"
-                      >
-                        {isRtl ? <ArrowRight size={14} /> : <ArrowLeft size={14} />}
-                        <span>{t.servicesBack}</span>
-                      </button>
-                    </div>
-
-                    <h3 className="text-2xl font-display font-bold mb-4 text-[#f0e8dd] leading-snug">
-                      {activeService.title[lang]}
+                  <div className="relative z-10 flex h-full w-full flex-col justify-end p-7 md:p-9">
+                    <span className="text-eyebrow text-gold">0{index + 1}</span>
+                    <h3 className="mt-3 font-display text-2xl text-bg-light md:text-3xl">
+                      {service.title[lang]}
                     </h3>
-
-                    <p className="text-sm text-[#f0e8dd]/85 font-sans leading-relaxed mb-6">
-                      {activeService.description[lang]}
+                    <p className="mt-3 max-w-md text-sm leading-relaxed text-bg-light/70 opacity-90 transition duration-500 group-hover:text-bg-light">
+                      {service.description[lang]}
                     </p>
-
-                    {/* Detailed list items */}
-                    <div className="space-y-4">
-                      {activeService.details[lang].map((detail, index) => (
-                        <div key={index} className="flex items-start gap-3">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#9c7049] mt-2 shrink-0" />
-                          <span className="text-xs sm:text-sm text-[#f0e8dd]/90 font-sans leading-relaxed">
-                            {detail}
-                          </span>
-                        </div>
-                      ))}
+                    <div className="mt-6 flex items-center justify-between border-t border-white/15 pt-5">
+                      <span className="text-xs text-bg-light/60">
+                        {t.servicesDurationLabel} {service.duration[lang]}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-gold">
+                        {t.servicesCTA}
+                        <ArrowUpRight
+                          size={14}
+                          className="transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 rtl:rotate-180"
+                        />
+                      </span>
                     </div>
                   </div>
-
-                  {/* Approximate Duration details in footer of card */}
-                  <div className="border-t border-[#9c7049]/20 pt-6 mt-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 text-xs font-mono text-[#d2b58b]">
-                      <Clock size={14} className="text-[#9c7049]" />
-                      <span>{t.servicesDurationLabel}</span>
-                      <span className="text-[#f0e8dd] font-semibold font-sans">{activeService.duration[lang]}</span>
-                    </div>
-
-                    {/* Mini direct quick contact */}
-                    <button
-                      onClick={() => {
-                        const footerSection = document.getElementById('footer');
-                        if (footerSection) {
-                          footerSection.scrollIntoView({ behavior: 'smooth' });
-                        }
-                      }}
-                      className="bg-[#9c7049] hover:bg-[#d2b58b] text-[#4e4033] hover:text-[#4e4033] text-xs font-sans font-semibold px-4 py-2 rounded-full transition-colors cursor-pointer"
-                    >
-                      {t.navContact}
-                    </button>
-                  </div>
-                </motion.div>
-              ) : (
-                /* Showcase default guide overlay before user picks one */
-                <div 
-                  className="bg-[#4e4033]/95 text-[#f0e8dd] rounded-2xl p-8 border border-[#9c7049]/20 h-full flex flex-col justify-center items-center text-center space-y-6 min-h-[300px]"
-                >
-                  <div className="w-16 h-16 rounded-full bg-[#d2b58b]/10 border border-[#9c7049]/40 flex items-center justify-center text-[#d2b58b]">
-                    <Compass size={28} className="animate-pulse" />
-                  </div>
-                  <div className="space-y-2">
-                    <h4 className="text-xl font-display font-medium text-[#d2b58b]">
-                      {isRtl ? "اكتشف رقي المعايير الطبية" : "Discover High Standards of Dentistry"}
-                    </h4>
-                    <p className="text-xs sm:text-sm text-[#f0e8dd]/70 max-w-sm mx-auto font-sans">
-                      {isRtl 
-                        ? "اختر أحد تخصصات عيادتنا التجميلية أو العلاجية لرؤية التفاصيل الفنية ومدة كل جلسة ونسب النجاح المتوقعة." 
-                        : "Select one of our exquisite treatment options to review detailed artistry specifications, approximate timeline, and curated clinical guidelines."}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </AnimatePresence>
-          </div>
-
+                </motion.button>
+              </SectionReveal>
+            );
+          })}
         </div>
-
       </div>
+
+      <AnimatePresence>
+        {active && (
+          <motion.div
+            className="fixed inset-0 z-[70] flex items-end justify-center bg-bg-dark/65 p-4 backdrop-blur-md md:items-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setActiveId(null)}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal
+              initial={{ opacity: 0, y: 50, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.98 }}
+              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              className="max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-3xl bg-bg-light text-ink shadow-[var(--shadow-float)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="relative h-48 overflow-hidden md:h-56">
+                <SafeImage
+                  src={IMAGES.services[active.id]}
+                  alt={active.title[lang]}
+                  className="h-full w-full"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-bg-light via-transparent to-transparent" />
+                <button
+                  type="button"
+                  onClick={() => setActiveId(null)}
+                  className="absolute end-4 top-4 rounded-full border border-white/20 bg-bg-dark/40 p-2 text-bg-light backdrop-blur"
+                  aria-label={t.servicesBack}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-7 md:p-10">
+                <p className="text-eyebrow text-bronze">{t.servicesSectionTitle}</p>
+                <h3 className="mt-3 font-display text-3xl md:text-4xl">{active.title[lang]}</h3>
+                <p className="mt-5 leading-relaxed text-muted">{active.description[lang]}</p>
+                <ul className="mt-8 space-y-3">
+                  {active.details[lang].map((d, i) => (
+                    <motion.li
+                      key={d}
+                      initial={{ opacity: 0, x: lang === 'ar' ? 12 : -12 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.08 * i }}
+                      className="flex gap-3 text-sm text-ink-soft"
+                    >
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
+                      {d}
+                    </motion.li>
+                  ))}
+                </ul>
+                <p className="mt-8 text-xs font-bold uppercase tracking-[0.14em] text-bronze">
+                  {t.servicesDurationLabel} {active.duration[lang]}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

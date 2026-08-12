@@ -1,10 +1,207 @@
-@import url('https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&display=swap');
+@import "./styles/arabic-fonts.css";
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Almarai", sans-serif;
-  --font-sans: "Almarai", sans-serif;
-  --font-mono: "Almarai", monospace;
+  --color-bg-light: #f5ede3;
+  --color-bg-warm: #ebe0d2;
+  --color-bg-dark: #1c1713;
+  --color-bg-ink: #2a221b;
+  --color-ink: #2c241c;
+  --color-ink-soft: #4e4033;
+  --color-bronze: #9c7049;
+  --color-gold: #c4a574;
+  --color-gold-soft: #d2b58b;
+  --color-accent: #8a5f3a;
+  --color-forest: #3a2f26;
+  --color-muted: #7a6b5c;
+  --color-line: rgba(78, 64, 51, 0.12);
+  --color-glass: rgba(245, 237, 227, 0.72);
+
+  /* Arabic mix: Ghaith Sans (UI/body) + Thmanyah (display + fallback) */
+  --font-arabic-body: "Ghaith Sans", "Thmanyah Sans", "SF Arabic", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-arabic-display: "Thmanyah Serif Display", "Ghaith Sans", "Thmanyah Sans", serif;
+  --font-display: "Cormorant Garamond", "Thmanyah Serif Display", Georgia, serif;
+  --font-sans: "Ghaith Sans", "Thmanyah Sans", "SF Arabic", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+
+  --text-display: clamp(2.75rem, 7vw, 6.5rem);
+  --text-display-sm: clamp(2rem, 4.5vw, 3.75rem);
+  --text-title: clamp(1.5rem, 2.5vw, 2.25rem);
+  --text-body-lg: clamp(1.05rem, 1.35vw, 1.2rem);
+  --text-eyebrow: 0.7rem;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --shadow-soft: 0 8px 32px rgba(28, 23, 19, 0.08);
+  --shadow-float: 0 24px 80px rgba(28, 23, 19, 0.12);
 }
 
+@layer base {
+  html {
+    scroll-behavior: auto;
+  }
 
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+
+  body {
+    @apply bg-bg-light text-ink font-sans antialiased;
+    font-feature-settings: "kern" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html[lang='ar'] body,
+  html[dir='rtl'] body {
+    font-family: var(--font-arabic-body);
+    letter-spacing: -0.01em;
+  }
+
+  html[lang='ar'] .font-display,
+  html[dir='rtl'] .font-display {
+    font-family: var(--font-arabic-display);
+    font-weight: 500;
+    letter-spacing: -0.015em;
+  }
+
+  html[lang='en'] .font-display {
+    font-family: var(--font-display);
+  }
+
+  html[lang='en'] body {
+    font-family: var(--font-sans);
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-bronze) 35%, transparent);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-bronze);
+    outline-offset: 3px;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-arabic-body {
+    font-family: var(--font-arabic-body);
+  }
+
+  .font-arabic-display {
+    font-family: var(--font-arabic-display);
+  }
+
+  .text-display {
+    font-size: var(--text-display);
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+  }
+
+  html[lang='ar'] .text-display,
+  html[dir='rtl'] .text-display {
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+
+  .text-display-sm {
+    font-size: var(--text-display-sm);
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+  }
+
+  html[lang='ar'] .text-display-sm,
+  html[dir='rtl'] .text-display-sm {
+    line-height: 1.25;
+  }
+
+  .text-title {
+    font-size: var(--text-title);
+    line-height: 1.2;
+  }
+
+  .text-eyebrow {
+    font-size: var(--text-eyebrow);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  html[lang='ar'] .text-eyebrow,
+  html[dir='rtl'] .text-eyebrow {
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    font-family: var(--font-arabic-body);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .bg-grain {
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% 0%, rgba(196, 165, 116, 0.12), transparent 50%),
+      radial-gradient(ellipse 60% 40% at 90% 20%, rgba(156, 112, 73, 0.08), transparent 45%),
+      linear-gradient(180deg, #f5ede3 0%, #ebe0d2 100%);
+  }
+
+  .bg-dark-grain {
+    background-image:
+      radial-gradient(ellipse 70% 50% at 30% 0%, rgba(196, 165, 116, 0.14), transparent 55%),
+      radial-gradient(ellipse 50% 40% at 100% 80%, rgba(156, 112, 73, 0.1), transparent 50%),
+      linear-gradient(165deg, #1c1713 0%, #2a221b 55%, #1c1713 100%);
+  }
+
+  .glass-nav {
+    background: color-mix(in srgb, var(--color-bg-light) 78%, transparent);
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    border: 1px solid rgba(78, 64, 51, 0.08);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .section-pad {
+    @apply py-24 md:py-32 lg:py-40;
+  }
+
+  .container-premium {
+    @apply mx-auto w-full max-w-[1400px] px-5 sm:px-8 lg:px-12;
+  }
+
+  .link-draw {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    background-size: 0% 1px;
+    transition: background-size 0.45s var(--ease-out-expo);
+  }
+
+  .link-draw:hover,
+  .link-draw[data-active='true'] {
+    background-size: 100% 1px;
+  }
+
+  .img-grade {
+    filter: saturate(0.92) contrast(1.04);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

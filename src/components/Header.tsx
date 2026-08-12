@@ -3,291 +3,268 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
-import { Menu, X, Languages, Phone } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../data';
-import { motion, AnimatePresence } from 'motion/react';
-import LogoAlmaali from '../assets/images/logo_almaali.png';
+import { IMAGES, WHATSAPP } from '../lib/images';
+import { cn } from '../lib/utils';
 
 interface HeaderProps {
   lang: Language;
   setLang: (lang: Language) => void;
   activeSection: string;
-  currentView?: string;
+  currentView: string;
 }
 
-export default function Header({ lang, setLang, activeSection, currentView = 'main' }: HeaderProps) {
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+const NAV = [
+  { id: 'home', key: 'navHome' as const },
+  { id: 'about', key: 'navAbout' as const },
+  { id: 'services', key: 'navServices' as const },
+  { id: 'team', key: 'navTeam' as const },
+  { id: 'gallery', key: 'navGallery' as const },
+  { id: 'testimonials', key: 'navTestimonials' as const },
+  { id: 'blog', key: 'navBlog' as const },
+];
+
+export default function Header({ lang, setLang, activeSection, currentView }: HeaderProps) {
   const t = TRANSLATIONS[lang];
+  const [scrolled, setScrolled] = useState(false);
+  const [open, setOpen] = useState(false);
+  const reduced = useReducedMotion();
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const navItems = [
-    { id: 'home', label: t.navHome },
-    { id: 'about', label: t.navAbout },
-    { id: 'services', label: t.navServices },
-    { id: 'team', label: t.navTeam },
-    { id: 'gallery', label: t.navGallery },
-    { id: 'testimonials', label: t.navTestimonials },
-    { id: 'blog', label: t.navBlog },
-  ];
+  useEffect(() => {
+    document.body.style.overflow = open ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
 
-  const handleScrollTo = (id: string) => {
-    setIsMobileMenuOpen(false);
-
+  const go = (id: string) => {
+    setOpen(false);
     if (id === 'blog') {
       window.location.hash = '#blog';
-      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-
-    if (window.location.pathname === '/admin') {
+    if (currentView !== 'main') {
       window.history.pushState(null, '', '/');
+      window.dispatchEvent(new PopStateEvent('popstate'));
       setTimeout(() => {
-        const element = document.getElementById(id);
-        if (element) {
-          const offset = 80;
-          const bodyRect = document.body.getBoundingClientRect().top;
-          const elementRect = element.getBoundingClientRect().top;
-          const elementPosition = elementRect - bodyRect;
-          const offsetPosition = elementPosition - offset;
-
-          window.scrollTo({
-            top: offsetPosition,
-            behavior: 'smooth',
-          });
-        }
-      }, 100);
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+      }, 80);
       return;
     }
-
-    if (window.location.hash === '#blog' || window.location.hash.startsWith('#blog-') || window.location.hash === '#admin') {
-      window.location.hash = '';
-      setTimeout(() => {
-        const element = document.getElementById(id);
-        if (element) {
-          const offset = 80;
-          const bodyRect = document.body.getBoundingClientRect().top;
-          const elementRect = element.getBoundingClientRect().top;
-          const elementPosition = elementRect - bodyRect;
-          const offsetPosition = elementPosition - offset;
-
-          window.scrollTo({
-            top: offsetPosition,
-            behavior: 'smooth',
-          });
-        }
-      }, 100);
-    } else {
-      const element = document.getElementById(id);
-      if (element) {
-        const offset = 80; // height of fixed header
-        const bodyRect = document.body.getBoundingClientRect().top;
-        const elementRect = element.getBoundingClientRect().top;
-        const elementPosition = elementRect - bodyRect;
-        const offsetPosition = elementPosition - offset;
-
-        window.scrollTo({
-          top: offsetPosition,
-          behavior: 'smooth',
-        });
-      }
-    }
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const toggleLanguage = () => {
-    const newLang = lang === 'ar' ? 'en' : 'ar';
-    setLang(newLang);
-  };
+  /** Over dark hero: light type. After scroll / blog: ink on cream. */
+  const overHero = !scrolled && !open && currentView === 'main';
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-40 w-full">
-      {/* Top micro bar for direct contact / luxury announcement */}
-      <div 
-        id="top-bar"
-        className="w-full bg-[#4e4033] text-[#f0e8dd] py-2 px-4 md:px-8 text-xs font-mono flex justify-between items-center z-50 relative"
-      >
-        <div className="flex items-center gap-4">
-          <a href="tel:+966114889000" className="flex items-center gap-1.5 hover:text-[#d2b58b] transition-colors">
-            <Phone size={13} className="text-[#9c7049]" />
-            <span dir="ltr">+966 11 488 9000</span>
-          </a>
-        </div>
-        <div className="hidden md:block tracking-wide">
-          {t.tagline}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-[#9c7049] animate-pulse"></span>
-          <span>{t.heroExperience}</span>
-        </div>
-      </div>
-
-      {/* Main navigation header */}
+    <>
       <header
-        id="main-header"
-        className={`w-full z-40 transition-all duration-300 ${
-          isScrolled
-            ? 'bg-[#f0e8dd]/95 backdrop-blur-md py-3'
-            : 'bg-[#f0e8dd] py-5'
-        }`}
+        className={cn(
+          'fixed inset-x-0 top-0 z-[60] transition-[background-color,box-shadow,border-color] duration-500',
+          open
+            ? 'bg-bg-dark'
+            : overHero
+              ? 'bg-transparent'
+              : 'border-b border-ink/8 bg-bg-light/92 shadow-[0_1px_0_rgba(44,36,28,0.04)] backdrop-blur-xl'
+        )}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          
-          {/* Logo / Brand */}
-          <button 
-            id="logo-button"
-            onClick={() => handleScrollTo('home')}
-            className="flex items-center gap-3 focus:outline-none cursor-pointer group"
+        <nav className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between gap-6 px-5 md:h-[80px] md:px-8 lg:px-12">
+          {/* Brand — quiet, clinical */}
+          <button
+            type="button"
+            onClick={() => go('home')}
+            className="flex shrink-0 items-center gap-3"
+            aria-label={t.brandName}
           >
-            <img 
-              src={LogoAlmaali} 
-              alt="Al Maali Logo" 
-              className="h-8 md:h-10 w-auto object-contain"
-              referrerPolicy="no-referrer"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
+            <img
+              src={IMAGES.logo}
+              alt=""
+              className="h-9 w-9 object-contain md:h-10 md:w-10"
             />
-            <div className={`flex flex-col ${
-              lang === 'ar' ? 'items-start text-right' : 'items-start text-left'
-            }`}>
-              <span className="font-display text-lg md:text-xl font-bold text-[#4e4033] tracking-wide group-hover:text-[#9c7049] transition-colors">
-                {t.brandName} <span className="text-[#9c7049]">.</span>
+            <span className="text-start leading-none">
+              <span
+                className={cn(
+                  'block font-display text-[1.15rem] tracking-tight md:text-[1.25rem]',
+                  overHero || open ? 'text-bg-light' : 'text-ink'
+                )}
+              >
+                {t.brandName}
               </span>
-              <span className="text-[10px] font-mono tracking-widest text-[#9c7049] uppercase mt-0.5">
+              <span
+                className={cn(
+                  'mt-1 block text-[10px] font-medium tracking-[0.04em]',
+                  overHero || open ? 'text-bg-light/55' : 'text-muted'
+                )}
+              >
                 {t.brandSubtitle}
               </span>
-            </div>
+            </span>
           </button>
 
-          {/* Desktop Navigation */}
-          <nav id="desktop-nav" className="hidden lg:flex items-center gap-6 xl:gap-8">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                id={`nav-link-${item.id}`}
-                onClick={() => handleScrollTo(item.id)}
-                className={`text-sm font-sans tracking-wide transition-colors relative py-1 cursor-pointer ${
-                  activeSection === item.id
-                    ? 'text-[#9c7049] font-semibold'
-                    : 'text-[#4e4033]/85 hover:text-[#9c7049]'
-                }`}
-              >
-                {item.label}
-                {activeSection === item.id && (
-                  <motion.div
-                    layoutId="activeNavLine"
-                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#9c7049]"
-                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  />
-                )}
-              </button>
-            ))}
-          </nav>
+          {/* Links — desktop, no ornaments */}
+          <ul className="hidden items-center gap-8 lg:flex xl:gap-10">
+            {NAV.map((item) => {
+              const active =
+                (item.id === 'blog' && (currentView === 'blog' || currentView === 'blog-post')) ||
+                activeSection === item.id;
 
-          {/* Controls: Language & Action button */}
-          <div id="header-controls" className="hidden lg:flex items-center gap-4">
-            {/* Language Switcher */}
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => go(item.id)}
+                    className={cn(
+                      'relative pb-1 text-[13px] font-medium tracking-wide transition-colors duration-300',
+                      overHero
+                        ? active
+                          ? 'text-bg-light'
+                          : 'text-bg-light/65 hover:text-bg-light'
+                        : active
+                          ? 'text-ink'
+                          : 'text-ink-soft/70 hover:text-ink'
+                    )}
+                  >
+                    {t[item.key]}
+                    <span
+                      className={cn(
+                        'absolute inset-x-0 bottom-0 h-px origin-left transition-transform duration-400 ease-[var(--ease-out-expo)]',
+                        overHero ? 'bg-gold' : 'bg-bronze',
+                        active ? 'scale-x-100' : 'scale-x-0'
+                      )}
+                    />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* Right actions */}
+          <div className="flex items-center gap-3 md:gap-4">
             <button
-              id="lang-switch-desktop"
-              onClick={toggleLanguage}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#9c7049]/20 hover:border-[#9c7049] text-xs font-mono text-[#4e4033] transition-all cursor-pointer hover:bg-[#d2b58b]/10"
+              type="button"
+              onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}
+              className={cn(
+                'text-[12px] font-medium tracking-wide transition-colors',
+                overHero || open
+                  ? 'text-bg-light/70 hover:text-bg-light'
+                  : 'text-ink-soft hover:text-ink'
+              )}
             >
-              <Languages size={14} className="text-[#9c7049]" />
-              <span>{t.langSwitch}</span>
+              {t.langSwitch}
             </button>
 
-            {/* CTA Contact Us Button */}
-            <button
-              id="header-cta"
-              onClick={() => handleScrollTo('footer')}
-              className="flex items-center gap-2 bg-[#4e4033] hover:bg-[#9c7049] text-[#f0e8dd] text-xs font-sans font-medium tracking-wide py-2.5 px-5 rounded-full shadow-sm transition-all duration-300 hover:shadow-md cursor-pointer border border-[#9c7049]/30"
+            <a
+              href={WHATSAPP.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                'hidden items-center border px-4 py-2 text-[12px] font-medium tracking-wide transition-colors duration-300 sm:inline-flex',
+                overHero || open
+                  ? 'border-bg-light/35 text-bg-light hover:border-bg-light hover:bg-bg-light hover:text-ink'
+                  : 'border-ink/20 text-ink hover:border-ink hover:bg-ink hover:text-bg-light'
+              )}
             >
-              <Phone size={14} />
-              <span>{t.navContact}</span>
+              {t.navContact}
+            </a>
+
+            <button
+              type="button"
+              className={cn(
+                'relative flex h-10 w-10 flex-col items-center justify-center gap-[5px] lg:hidden',
+                overHero || open ? 'text-bg-light' : 'text-ink'
+              )}
+              onClick={() => setOpen((v) => !v)}
+              aria-label={open ? 'Close menu' : 'Open menu'}
+              aria-expanded={open}
+            >
+              <motion.span
+                className="block h-px w-5 bg-current"
+                animate={open ? { rotate: 45, y: 6 } : { rotate: 0, y: 0 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              />
+              <motion.span
+                className="block h-px w-5 bg-current"
+                animate={open ? { opacity: 0 } : { opacity: 1 }}
+                transition={{ duration: 0.2 }}
+              />
+              <motion.span
+                className="block h-px w-5 bg-current"
+                animate={open ? { rotate: -45, y: -6 } : { rotate: 0, y: 0 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              />
             </button>
           </div>
-
-          {/* Mobile controls (hamburger, language) */}
-          <div className="flex lg:hidden items-center gap-3">
-            {/* Quick Language switch on mobile */}
-            <button
-              id="lang-switch-mobile"
-              onClick={toggleLanguage}
-              className="flex items-center justify-center p-2 rounded-full border border-[#9c7049]/20 text-[#4e4033] cursor-pointer"
-              aria-label="Switch Language"
-            >
-              <Languages size={16} className="text-[#9c7049]" />
-            </button>
-
-            {/* Mobile menu trigger */}
-            <button
-              id="mobile-menu-trigger"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 rounded-md text-[#4e4033] hover:text-[#9c7049] focus:outline-none cursor-pointer"
-              aria-label="Toggle Menu"
-            >
-              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          </div>
-
-        </div>
+        </nav>
       </header>
 
-      {/* Mobile Drawer Navigation with AnimatePresence */}
+      {/* Mobile — calm full panel, medical restraint */}
       <AnimatePresence>
-        {isMobileMenuOpen && (
+        {open && (
           <motion.div
-            id="mobile-nav-drawer"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-x-0 top-[110px] bg-[#f0e8dd] shadow-lg border-b border-[#9c7049]/20 z-30 lg:hidden font-sans"
+            className="fixed inset-0 z-50 flex flex-col bg-bg-dark lg:hidden"
+            initial={reduced ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
           >
-            <div className="px-4 py-6 space-y-4 max-h-[calc(100vh-120px)] overflow-y-auto">
-              <div className="grid grid-cols-1 gap-1">
-                {navItems.map((item) => (
-                  <button
-                    key={item.id}
-                    id={`mobile-nav-link-${item.id}`}
-                    onClick={() => handleScrollTo(item.id)}
-                    className={`w-full text-left py-2.5 px-3 rounded-lg text-sm transition-all flex items-center justify-between cursor-pointer ${
-                      activeSection === item.id
-                        ? 'bg-[#d2b58b]/20 text-[#9c7049] font-medium'
-                        : 'text-[#4e4033] hover:bg-[#d2b58b]/10'
-                    }`}
-                    style={{ textAlign: lang === 'ar' ? 'right' : 'left' }}
-                  >
-                    <span>{item.label}</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#9c7049]/40"></span>
-                  </button>
-                ))}
-              </div>
+            <div className="flex h-[72px] items-center justify-between px-5 md:h-[80px] md:px-8">
+              <span className="font-display text-lg text-bg-light">{t.brandName}</span>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-[12px] font-medium tracking-wide text-bg-light/70"
+              >
+                {lang === 'ar' ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
 
-              <div className="border-t border-[#9c7049]/20 pt-4 flex flex-col gap-3">
-                {/* Mobile Contact CTA */}
-                <button
-                  id="mobile-nav-cta"
-                  onClick={() => handleScrollTo('footer')}
-                  className="w-full py-3 px-4 bg-[#4e4033] hover:bg-[#9c7049] text-[#f0e8dd] rounded-full text-sm font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            <div className="flex flex-1 flex-col justify-between px-5 pb-10 md:px-8">
+              <ul className="mt-6 space-y-0 border-t border-white/10">
+                {NAV.map((item, i) => (
+                  <motion.li
+                    key={item.id}
+                    initial={reduced ? false : { opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.04 * i, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                    className="border-b border-white/10"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => go(item.id)}
+                      className="w-full py-5 text-start font-display text-3xl text-bg-light transition hover:text-gold md:text-4xl"
+                    >
+                      {t[item.key]}
+                    </button>
+                  </motion.li>
+                ))}
+              </ul>
+
+              <div className="space-y-4 pt-8">
+                <a
+                  href={WHATSAPP.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex w-full items-center justify-center border border-bg-light/30 px-6 py-3.5 text-[13px] font-medium tracking-wide text-bg-light transition hover:bg-bg-light hover:text-ink"
                 >
-                  <Phone size={16} />
-                  <span>{t.navContact}</span>
-                </button>
+                  {t.heroCTA}
+                </a>
+                <p className="text-center text-[12px] text-bg-light/40">{WHATSAPP.phoneDisplay}</p>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }

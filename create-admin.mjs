@@ -1,29 +1,69 @@
 /**
- * سكريبت تشخيص وإنشاء حساب الأدمن
- * يتصل مباشرة بـ Supabase Auth API
+ * تشخيص وإنشاء حساب الأدمن عبر Supabase Auth
+ * Usage:
+ *   VITE_SUPABASE_URL=... VITE_SUPABASE_ANON_KEY=... ADMIN_EMAIL=... ADMIN_PASSWORD=... npm run test:auth
+ * Or place values in .env (never commit secrets).
  */
 
-const SUPABASE_URL = 'https://osqngjtghzkfmseonexr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zcW5nanRnaHprZm1zZW9uZXhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjE4NDAsImV4cCI6MjA5OTU5Nzg0MH0.nRLmUt769nMaRCzIcbG2m9ZWW7_DzPvmppZ0HgLOPF4';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 
-const EMAIL = 'admin@almaali.com';
-const PASSWORD = 'almaali@123';
+function loadEnvFile() {
+  const envPath = resolve(process.cwd(), '.env');
+  if (!existsSync(envPath)) return;
+  const raw = readFileSync(envPath, 'utf8');
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (!process.env[key]) process.env[key] = value;
+  }
+}
+
+loadEnvFile();
+
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || '';
+const EMAIL = process.env.ADMIN_EMAIL || '';
+const PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 async function main() {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🔍 تشخيص مشكلة تسجيل الدخول');
+  console.log('🔍 Almaali admin auth diagnostic');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !EMAIL || !PASSWORD) {
+    console.log('❌ Missing required environment variables.');
+    console.log('');
+    console.log('Set these in .env (or export them) then re-run:');
+    console.log('  VITE_SUPABASE_URL=https://xxxx.supabase.co');
+    console.log('  VITE_SUPABASE_ANON_KEY=your_anon_key');
+    console.log('  ADMIN_EMAIL=admin@yourdomain.com');
+    console.log('  ADMIN_PASSWORD=a-strong-password');
+    console.log('');
+    console.log('Then: npm run test:auth');
+    process.exit(1);
+  }
+
   console.log('📡 URL:', SUPABASE_URL);
   console.log('📧 Email:', EMAIL);
   console.log('');
 
-  // 1. محاولة تسجيل الدخول
-  console.log('🔐 محاولة 1: signInWithPassword...');
+  console.log('🔐 Attempt 1: signInWithPassword...');
   const signInRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
+      apikey: SUPABASE_ANON_KEY,
     },
     body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
   });
@@ -31,60 +71,61 @@ async function main() {
   const signInData = await signInRes.json();
 
   if (signInRes.ok && signInData.access_token) {
-    console.log('✅ تسجيل الدخول نجح! المشكلة ليست في Supabase.');
+    console.log('✅ Login succeeded.');
     console.log('   User ID:', signInData.user?.id);
-    console.log('   Email confirmed:', signInData.user?.email_confirmed_at ? 'نعم ✅' : 'لا ❌');
+    console.log(
+      '   Email confirmed:',
+      signInData.user?.email_confirmed_at ? 'yes ✅' : 'no ❌'
+    );
     return;
   }
 
-  console.log('❌ فشل تسجيل الدخول');
-  console.log('   الخطأ:', signInData.error || signInData.error_description || JSON.stringify(signInData));
+  console.log('❌ Login failed');
+  console.log(
+    '   Error:',
+    signInData.error || signInData.error_description || JSON.stringify(signInData)
+  );
   console.log('');
 
-  // 2. محاولة إنشاء حساب جديد
-  console.log('📝 محاولة 2: إنشاء حساب جديد (signUp)...');
+  console.log('📝 Attempt 2: signUp...');
   const signUpRes = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
+      apikey: SUPABASE_ANON_KEY,
     },
     body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
   });
 
   const signUpData = await signUpRes.json();
 
-  if (signUpRes.ok && signUpData.id) {
-    console.log('✅ تم إنشاء الحساب!');
-    console.log('   User ID:', signUpData.id);
-    const confirmed = signUpData.email_confirmed_at;
-    if (confirmed) {
-      console.log('   ✅ البريد مؤكد — يمكنك الدخول الآن');
-    } else {
-      console.log('   ⚠️  البريد غير مؤكد تلقائياً');
+  if (signUpRes.ok && (signUpData.id || signUpData.user?.id)) {
+    console.log('✅ Account created (or pending confirmation).');
+    console.log('   User ID:', signUpData.id || signUpData.user?.id);
+    if (!(signUpData.email_confirmed_at || signUpData.user?.email_confirmed_at)) {
       console.log('');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🛠️  الحل: عطّل تأكيد البريد من Supabase:');
-      console.log('   1. افتح: https://supabase.com/dashboard/project/osqngjtghzkfmseonexr/auth/providers');
-      console.log('   2. اضغط Email');
-      console.log('   3. عطّل "Confirm email" (اجعلها OFF)');
-      console.log('   4. احفظ');
-      console.log('   5. ثم اذهب إلى: https://supabase.com/dashboard/project/osqngjtghzkfmseonexr/auth/users');
-      console.log('   6. اضغط على المستخدم admin@almaali.com');
-      console.log('   7. اضغط "Confirm email" أو "Send confirmation"');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('⚠️  Email may be unconfirmed. In Supabase Dashboard:');
+      console.log('   1. Authentication → Providers → Email → disable "Confirm email" (dev), OR');
+      console.log('   2. Authentication → Users → confirm the admin user manually');
     }
-  } else if (signUpData.error === 'User already registered') {
-    console.log('⚠️  الحساب موجود لكن كلمة المرور خاطئة أو البريد غير مؤكد');
-    console.log('');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🛠️  الحل:');
-    console.log('   اذهب إلى: https://supabase.com/dashboard/project/osqngjtghzkfmseonexr/auth/users');
-    console.log('   اضغط على المستخدم → "Send password reset" أو "Confirm user"');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  } else {
-    console.log('❌ خطأ في إنشاء الحساب:', JSON.stringify(signUpData));
+    return;
   }
+
+  if (
+    signUpData.error === 'User already registered' ||
+    signUpData.msg === 'User already registered' ||
+    String(signUpData.error_description || '').includes('already')
+  ) {
+    console.log('⚠️  User already exists but login failed.');
+    console.log('   Reset the password in Supabase Auth → Users, or confirm the email.');
+    return;
+  }
+
+  console.log('❌ Sign-up failed:', JSON.stringify(signUpData));
+  process.exit(1);
 }
 
-main().catch(err => console.error('❌ خطأ:', err.message));
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

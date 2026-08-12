@@ -3,17 +3,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type AuthChangeEvent, type Session } from '@supabase/supabase-js';
 import { BlogPost, GalleryItem, Doctor } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const isDev = import.meta.env.DEV;
+
+/** Softened logger — verbose diagnostics only in development. */
+const logDev = (...args: unknown[]) => {
+  if (isDev) console.log(...args);
+};
 
 // Check if configuration parameters are present
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
-// Diagnostic log — shows in browser console
-console.log('[Supabase] isConfigured:', isSupabaseConfigured, '| URL:', supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : '(empty)');
+logDev(
+  '[Supabase] isConfigured:',
+  isSupabaseConfigured,
+  '| URL:',
+  supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : '(empty)'
+);
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
@@ -42,23 +52,32 @@ export async function signInAdmin(
 ): Promise<{ success: boolean; error?: string }> {
   if (!supabase) return { success: false, error: 'Supabase not configured' };
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-  if (error) {
-    // Log full error details to browser console for debugging
-    console.error('[Auth] Sign-in failed:', error.message, '| status:', error.status, '| code:', (error as any).code);
-    console.error('[Auth] Full error:', JSON.stringify(error, null, 2));
-
-    // If "Email not confirmed" — try to resend confirmation or hint user
-    if (error.message?.toLowerCase().includes('email not confirmed')) {
-      console.warn('[Auth] Email is not confirmed. Go to Supabase Dashboard → Authentication → Users and confirm the user manually.');
-      return { success: false, error: 'email_not_confirmed' };
-    }
-
-    return { success: false, error: error.message };
+  const trimmedEmail = email.trim().toLowerCase();
+  if (!trimmedEmail || !password) {
+    return { success: false, error: 'missing_credentials' };
   }
 
-  console.log('[Auth] Admin signed in successfully. User:', data.user?.email);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: trimmedEmail,
+    password,
+  });
+
+  if (error) {
+    if (isDev) {
+      console.error('[Auth] Sign-in failed:', error.message, '| status:', error.status);
+    }
+
+    if (error.message?.toLowerCase().includes('email not confirmed')) {
+      return { success: false, error: 'email_not_confirmed' };
+    }
+    if (error.status === 429 || error.message?.toLowerCase().includes('rate')) {
+      return { success: false, error: 'rate_limited' };
+    }
+
+    return { success: false, error: 'invalid_credentials' };
+  }
+
+  logDev('[Auth] Admin signed in successfully. User:', data.user?.email);
   return { success: true };
 }
 
@@ -66,7 +85,7 @@ export async function signInAdmin(
 export async function signOutAdmin(): Promise<void> {
   if (!supabase) return;
   await supabase.auth.signOut();
-  console.log('[Auth] Admin signed out');
+  logDev('[Auth] Admin signed out');
 }
 
 /** Returns the current Supabase Auth session, or null if not signed in. */
@@ -74,6 +93,28 @@ export async function getAdminSession() {
   if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
   return data.session;
+}
+
+/**
+ * Alias helper — returns the active session or null.
+ * Useful for gating privileged actions before writes.
+ */
+export async function requireAuthSession(): Promise<Session | null> {
+  return getAdminSession();
+}
+
+/**
+ * Subscribe to Supabase auth state changes.
+ * Returns an unsubscribe function (no-op when Supabase is not configured).
+ */
+export function onAuthStateChange(
+  callback: (event: AuthChangeEvent, session: Session | null) => void
+): () => void {
+  if (!supabase) return () => {};
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    callback(event, session);
+  });
+  return () => subscription.unsubscribe();
 }
 
 /**
@@ -166,9 +207,9 @@ export async function uploadBase64Image(base64DataUrl: string, folder: string, f
  * Content is loaded on-demand via fetchBlogPostContent().
  */
 export async function fetchBlogPostsFromSupabase(): Promise<BlogPost[] | null> {
-  if (!supabase) { console.warn('[Supabase] fetchBlogPosts: client is null, skipping'); return null; }
+  if (!supabase) { if (isDev) console.warn('[Supabase] fetchBlogPosts: client is null, skipping'); return null; }
   try {
-    console.log('[Supabase] Fetching blog_posts...');
+    logDev('[Supabase] Fetching blog_posts...');
     const { data, error } = await supabase
       .from('blog_posts')
       .select('id, title, excerpt, date, read_time, category, image, author')
@@ -179,7 +220,7 @@ export async function fetchBlogPostsFromSupabase(): Promise<BlogPost[] | null> {
       console.error('[Supabase] Error fetching blogs:', error.message, error);
       return null;
     }
-    console.log('[Supabase] blog_posts fetched:', data?.length ?? 0, 'rows');
+    logDev('[Supabase] blog_posts fetched:', data?.length ?? 0, 'rows');
 
     // Map DB underscore fields back to camelCase properties of BlogPost
     return (data || []).map(row => ({
@@ -270,9 +311,9 @@ export async function deleteBlogPostFromSupabase(id: string): Promise<boolean> {
 // --- GALLERY OPERATIONS ---
 
 export async function fetchGalleryItemsFromSupabase(): Promise<GalleryItem[] | null> {
-  if (!supabase) { console.warn('[Supabase] fetchGallery: client is null, skipping'); return null; }
+  if (!supabase) { if (isDev) console.warn('[Supabase] fetchGallery: client is null, skipping'); return null; }
   try {
-    console.log('[Supabase] Fetching gallery_items...');
+    logDev('[Supabase] Fetching gallery_items...');
     const { data, error } = await supabase
       .from('gallery_items')
       .select('id, title, category, image, description')
@@ -284,7 +325,7 @@ export async function fetchGalleryItemsFromSupabase(): Promise<GalleryItem[] | n
       console.error('[Supabase] Error fetching gallery_items:', error.message, error);
       return null;
     }
-    console.log('[Supabase] gallery_items fetched:', data?.length ?? 0, 'rows');
+    logDev('[Supabase] gallery_items fetched:', data?.length ?? 0, 'rows');
 
     return (data || []).map(row => ({
       id: row.id,
@@ -354,7 +395,7 @@ export async function fetchDoctorsFromSupabase(): Promise<Doctor[] | null> {
       .order('created_at', { ascending: true })
       .limit(20);
 
-    console.log('[DB] fetchDoctors result:', { dataLen: data?.length, error: error?.message });
+    logDev('[DB] fetchDoctors result:', { dataLen: data?.length, error: error?.message });
 
     if (error) {
       console.warn('Error fetching doctors from Supabase:', error.message);

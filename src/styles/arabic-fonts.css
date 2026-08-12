@@ -1,0 +1,55 @@
+/* Thmanyah (ثمانية) — Sans + Serif Display */
+@import "@dawod/thmanyah-font-web/sans.css";
+@import "@dawod/thmanyah-font-web/serif-display.css";
+
+/*
+  Ghaith Sans — prefer locally licensed files in /fonts/ghaith/
+  Drop: GhaithSans-Regular.woff2, GhaithSans-Medium.woff2, GhaithSans-Bold.woff2
+  (Purchase / license from GHEEN Studio / MyFonts for production use.)
+*/
+@font-face {
+  font-family: "Ghaith Sans";
+  src:
+    local("Ghaith Sans"),
+    local("GhaithSans"),
+    local("GHAITHSANS"),
+    url("/fonts/ghaith/GhaithSans-Regular.woff2") format("woff2"),
+    url("/fonts/ghaith/GhaithSans-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ghaith Sans";
+  src:
+    local("Ghaith Sans Medium"),
+    local("GhaithSans-Medium"),
+    url("/fonts/ghaith/GhaithSans-Medium.woff2") format("woff2"),
+    url("/fonts/ghaith/GhaithSans-Medium.woff") format("woff");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ghaith Sans";
+  src:
+    local("Ghaith Sans Bold"),
+    local("GhaithSans-Bold"),
+    url("/fonts/ghaith/GhaithSans-Bold.woff2") format("woff2"),
+    url("/fonts/ghaith/GhaithSans-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ghaith Sans";
+  src:
+    local("Ghaith Sans SemiBold"),
+    url("/fonts/ghaith/GhaithSans-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}

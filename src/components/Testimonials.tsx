@@ -3,11 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
-import { Star, Quote, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
+import { Star } from 'lucide-react';
 import { Language } from '../types';
 import { TESTIMONIALS, TRANSLATIONS } from '../data';
-import { motion, AnimatePresence } from 'motion/react';
+import { IMAGES } from '../lib/images';
+import SectionReveal from './ui/SectionReveal';
+import FloatingCard from './ui/FloatingCard';
+import Marquee from './ui/Marquee';
+import SafeImage from './ui/SafeImage';
+import TextReveal from './ui/TextReveal';
 
 interface TestimonialsProps {
   lang: Language;
@@ -15,121 +20,77 @@ interface TestimonialsProps {
 
 export default function Testimonials({ lang }: TestimonialsProps) {
   const t = TRANSLATIONS[lang];
-  const isRtl = lang === 'ar';
-  
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  const handleNext = () => {
-    setActiveIndex((prev) => (prev + 1) % TESTIMONIALS.length);
-  };
-
-  const handlePrev = () => {
-    setActiveIndex((prev) => (prev - 1 + TESTIMONIALS.length) % TESTIMONIALS.length);
-  };
-
-  const current = TESTIMONIALS[activeIndex];
+  const reduced = useReducedMotion();
+  const marqueeItems =
+    lang === 'ar'
+      ? ['فينير سويسري', 'زراعة فورية', 'تقويم شفاف', 'تجربة منتجعية', 'خصوصية تامة']
+      : ['Swiss Veneers', 'Immediate Implants', 'Clear Aligners', 'Spa Experience', 'Total Privacy'];
 
   return (
-    <section 
-      id="testimonials" 
-      className="py-20 bg-[#f0e8dd] relative overflow-hidden border-t border-[#9c7049]/10"
-    >
-      {/* Decorative ambient elements */}
-      <div className="absolute right-0 top-1/4 w-72 h-72 rounded-full bg-[#d2b58b]/10 blur-3xl pointer-events-none" />
-      <div className="absolute left-0 bottom-1/4 w-72 h-72 rounded-full bg-[#9c7049]/5 blur-3xl pointer-events-none" />
+    <section id="testimonials" className="section-pad relative overflow-hidden bg-bg-warm/40">
+      <div className="pointer-events-none absolute inset-0 opacity-30">
+        <SafeImage src={IMAGES.vision} alt="" className="h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-bg-light/90" />
+      </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 relative z-10">
-        
-        {/* Section Header */}
-        <div className="text-center space-y-3 mb-16">
-          <span className="text-xs font-mono font-semibold tracking-widest text-[#9c7049] uppercase block">
-            {t.testimonialsSectionTitle}
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-display font-bold text-[#4e4033]">
-            {t.testimonialsSectionSubtitle}
-          </h2>
-          <div className="w-16 h-[1px] bg-[#9c7049] mx-auto mt-4" />
-        </div>
+      <div className="container-premium relative">
+        <SectionReveal className="max-w-3xl">
+          <p className="text-eyebrow text-bronze">{t.testimonialsSectionTitle}</p>
+          <TextReveal
+            text={t.testimonialsSectionSubtitle}
+            className="mt-4 font-display text-display-sm text-ink"
+          />
+        </SectionReveal>
 
-        {/* Carousel slide Container */}
-        <div className="relative">
-          
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={current.id}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.4 }}
-              className="bg-[#d2b58b]/10 border border-[#9c7049]/15 rounded-[32px] p-8 sm:p-12 relative flex flex-col justify-between"
-              style={{ textAlign: isRtl ? 'right' : 'left' }}
-            >
-              {/* Giant quote background watermark */}
-              <div className={`absolute text-[#9c7049]/5 pointer-events-none ${isRtl ? 'left-8 top-8' : 'right-8 top-8'}`}>
-                <Quote size={120} />
-              </div>
-
-              <div className="space-y-6 relative z-10">
-                {/* Stars and Verified indicator */}
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex gap-1 text-[#9c7049]">
-                    {[...Array(current.rating)].map((_, i) => (
-                      <Star key={i} size={16} fill="#9c7049" />
+        <div className="mt-14 grid gap-5 lg:grid-cols-3">
+          {TESTIMONIALS.map((item, index) => (
+            <SectionReveal key={item.id} delay={index * 0.1}>
+              <FloatingCard className="h-full !overflow-hidden !p-0" float={index === 1}>
+                <div className="relative h-40 overflow-hidden">
+                  <SafeImage
+                    src={IMAGES.testimonials[item.id] || IMAGES.placeholders.doctor}
+                    alt={item.name[lang]}
+                    className="h-full w-full"
+                    parallax
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-bg-light via-bg-light/40 to-transparent" />
+                  <motion.div
+                    className="absolute bottom-4 start-5 h-14 w-14 overflow-hidden rounded-full border-2 border-bg-light shadow-lg"
+                    animate={reduced ? undefined : { y: [0, -4, 0] }}
+                    transition={{ duration: 4 + index, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    <SafeImage
+                      src={IMAGES.testimonials[item.id]}
+                      alt={item.name[lang]}
+                      className="h-full w-full"
+                    />
+                  </motion.div>
+                </div>
+                <div className="p-6 pt-2 md:p-8">
+                  <div className="flex gap-1 text-gold">
+                    {Array.from({ length: item.rating }).map((_, i) => (
+                      <Star key={i} size={14} fill="currentColor" />
                     ))}
                   </div>
-
-                  <span className="inline-flex items-center gap-1.5 bg-[#4e4033] text-[#f0e8dd] text-[10px] font-mono uppercase tracking-widest px-3 py-1 rounded-full border border-[#9c7049]/20">
-                    <CheckCircle2 size={11} className="text-[#9c7049]" />
-                    <span>{t.testimonialsVerified}</span>
-                  </span>
-                </div>
-
-                {/* Patient Review Text */}
-                <blockquote className="text-lg sm:text-xl font-display font-medium text-[#4e4033] leading-relaxed italic">
-                  "{current.comment[lang]}"
-                </blockquote>
-
-                {/* Bottom line detailing Treatment details & User identity */}
-                <div className="border-t border-[#9c7049]/10 pt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <cite className="not-italic text-base sm:text-lg font-bold text-[#4e4033] block">
-                      {current.name[lang]}
-                    </cite>
-                    <span className="text-xs font-mono text-[#9c7049] uppercase tracking-wider block mt-0.5">
-                      {current.treatment[lang]}
-                    </span>
+                  <p className="mt-5 font-display text-xl leading-relaxed text-ink md:text-2xl">
+                    “{item.comment[lang]}”
+                  </p>
+                  <div className="mt-8 border-t border-ink/8 pt-5">
+                    <div className="font-bold text-ink">{item.name[lang]}</div>
+                    <div className="mt-1 text-xs text-muted">{item.treatment[lang]}</div>
+                    <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-bronze">
+                      {t.testimonialsVerified}
+                    </div>
                   </div>
-
-                  <span className="text-[10px] font-mono text-[#4e4033]/60">
-                    {current.date}
-                  </span>
                 </div>
-              </div>
-
-            </motion.div>
-          </AnimatePresence>
-
-          {/* Navigational controls */}
-          <div className="flex justify-center gap-4 mt-8">
-            <button
-              onClick={handlePrev}
-              className="w-12 h-12 rounded-full border border-[#9c7049]/25 hover:border-[#9c7049] flex items-center justify-center text-[#4e4033] hover:bg-[#d2b58b]/15 transition-all cursor-pointer"
-              aria-label="Previous Testimonial"
-            >
-              {isRtl ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-            </button>
-            
-            <button
-              onClick={handleNext}
-              className="w-12 h-12 rounded-full border border-[#9c7049]/25 hover:border-[#9c7049] flex items-center justify-center text-[#4e4033] hover:bg-[#d2b58b]/15 transition-all cursor-pointer"
-              aria-label="Next Testimonial"
-            >
-              {isRtl ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-            </button>
-          </div>
-
+              </FloatingCard>
+            </SectionReveal>
+          ))}
         </div>
+      </div>
 
+      <div className="relative mt-16">
+        <Marquee items={marqueeItems} speed={32} />
       </div>
     </section>
   );
