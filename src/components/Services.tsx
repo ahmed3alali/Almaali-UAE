@@ -79,11 +79,11 @@ export default function Services({ lang, services }: ServicesProps) {
                           ? `${t.servicesDurationLabel} ${localeText(service.duration, lang)}`
                           : ''}
                       </span>
-                      <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-gold">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-gold">
                         {t.servicesCTA}
                         <ArrowUpRight
                           size={14}
-                          className="transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 rtl:rotate-180"
+                          className="shrink-0 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 rtl:rotate-180"
                         />
                       </span>
                     </div>
@@ -151,7 +151,7 @@ export default function Services({ lang, services }: ServicesProps) {
                   </ul>
                 )}
                 {localeText(active.duration, lang) ? (
-                  <p className="mt-8 text-xs font-bold uppercase tracking-[0.14em] text-bronze">
+                  <p className="mt-8 text-xs font-bold text-bronze">
                     {t.servicesDurationLabel} {localeText(active.duration, lang)}
                   </p>
                 ) : null}

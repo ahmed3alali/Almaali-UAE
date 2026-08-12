@@ -21,7 +21,14 @@ export default function Hero({ lang }: HeroProps) {
   const t = TRANSLATIONS[lang];
   const ref = useRef<HTMLElement>(null);
   const reduced = useReducedMotion();
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end start'] });
+  const isTouch =
+    typeof window !== 'undefined' &&
+    (window.matchMedia('(hover: none)').matches || window.matchMedia('(pointer: coarse)').matches);
+  const parallaxOff = reduced || isTouch;
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ['start start', 'end start'],
+  });
   const y = useTransform(scrollYProgress, [0, 1], ['0%', '22%']);
   const opacity = useTransform(scrollYProgress, [0, 0.85], [1, 0.25]);
   const scaleBg = useTransform(scrollYProgress, [0, 1], [1.05, 1.18]);
@@ -34,16 +41,19 @@ export default function Hero({ lang }: HeroProps) {
   const stats = [
     { value: 1, suffix: '', label: lang === 'ar' ? 'هدفنا رضاك' : 'Our goal is your satisfaction' },
     { value: 100, suffix: '%', label: lang === 'ar' ? 'إهتمام بالتفاصيل' : 'Details Care' },
-    { value: 360, suffix: '°', label: lang === 'ar' ? ' رعاية متكاملة' : 'Comprehensive Care' },
+    { value: 360, suffix: '°', label: lang === 'ar' ? 'رعاية متكاملة' : 'Comprehensive Care' },
   ];
 
   return (
     <section
       id="home"
       ref={ref}
-      className="relative min-h-[100svh] overflow-x-hidden bg-bg-dark text-bg-light"
+      className="relative min-h-[100svh] touch-pan-y overflow-x-hidden bg-bg-dark text-bg-light"
     >
-      <motion.div style={reduced ? undefined : { y, scale: scaleBg }} className="absolute inset-0">
+      <motion.div
+        style={parallaxOff ? undefined : { y, scale: scaleBg }}
+        className="pointer-events-none absolute inset-0"
+      >
         <SafeImage
           src={IMAGES.hero}
           alt={lang === 'ar' ? 'بهو عيادات المعالي الفاخر' : 'Al Maali luxury clinic lobby'}
@@ -58,7 +68,7 @@ export default function Hero({ lang }: HeroProps) {
       </motion.div>
 
       <motion.div
-        style={reduced ? undefined : { opacity }}
+        style={parallaxOff ? undefined : { opacity }}
         className="relative z-10 flex min-h-[100svh] flex-col justify-end pb-16 pt-36 md:pb-24 md:pt-40"
       >
         <div className="container-premium">
@@ -109,7 +119,7 @@ export default function Hero({ lang }: HeroProps) {
             </MagneticButton>
             <a
               href="#about"
-              className="link-draw text-sm font-bold uppercase tracking-[0.16em] text-bg-light/80"
+              className="link-draw text-sm font-bold text-bg-light/80"
             >
               {t.navAbout}
             </a>

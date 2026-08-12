@@ -26,6 +26,8 @@ const word: Variants = {
   },
 };
 
+const hasArabic = (text: string) => /[\u0600-\u06FF]/.test(text);
+
 export default function TextReveal({
   text,
   className,
@@ -34,10 +36,21 @@ export default function TextReveal({
 }: TextRevealProps) {
   const reduced = useReducedMotion();
   const words = text.split(/\s+/).filter(Boolean);
+  // Word-clip reveal breaks Arabic shaping / clips glyphs — keep a simple fade
+  const simple = reduced || hasArabic(text);
+  const Tag = as;
 
-  if (reduced) {
-    const Tag = as;
-    return <Tag className={className}>{text}</Tag>;
+  if (simple) {
+    return (
+      <motion.div
+        initial={reduced ? false : { opacity: 0, y: 18 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-8%' }}
+        transition={{ duration: 0.7, delay, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <Tag className={className}>{text}</Tag>
+      </motion.div>
+    );
   }
 
   const MotionTag = motion[as];

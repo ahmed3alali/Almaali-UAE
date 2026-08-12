@@ -147,9 +147,35 @@
 
   html[lang='ar'] .text-eyebrow,
   html[dir='rtl'] .text-eyebrow {
-    letter-spacing: 0.08em;
+    letter-spacing: normal;
+    text-transform: none;
     font-weight: 600;
     font-family: var(--font-arabic-body);
+  }
+
+  /* uppercase + wide tracking breaks Arabic letter connections (e.g. اكتشف الخدمة) */
+  html[lang='ar'] .uppercase,
+  html[dir='rtl'] .uppercase {
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  html[lang='ar'] .tracking-tight,
+  html[lang='ar'] .tracking-normal,
+  html[lang='ar'] .tracking-wide,
+  html[lang='ar'] .tracking-wider,
+  html[lang='ar'] .tracking-widest,
+  html[dir='rtl'] .tracking-tight,
+  html[dir='rtl'] .tracking-normal,
+  html[dir='rtl'] .tracking-wide,
+  html[dir='rtl'] .tracking-wider,
+  html[dir='rtl'] .tracking-widest {
+    letter-spacing: normal;
+  }
+
+  html[lang='ar'] [class*='tracking-['],
+  html[dir='rtl'] [class*='tracking-['] {
+    letter-spacing: normal;
   }
 
   .text-balance {
