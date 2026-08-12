@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Language, BlogPost, GalleryItem, Doctor } from './types';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -16,29 +16,45 @@ import Blog from './components/Blog';
 import CTA from './components/CTA';
 import Footer from './components/Footer';
 import SmoothScroll from './components/ui/SmoothScroll';
-import { BLOG_POSTS, GALLERY, DOCTORS } from './data';
 import {
   isSupabaseConfigured,
   fetchBlogPostsFromSupabase,
   fetchGalleryItemsFromSupabase,
   fetchDoctorsFromSupabase,
+  hydrateDoctorImages,
+  hydrateGalleryImages,
 } from './lib/supabase';
-import { cachedFetch, clearSessionCache } from './lib/sessionCache';
+import { clearSessionCache, writeSessionCache } from './lib/sessionCache';
 import { WHATSAPP } from './lib/images';
 import { isAdminPath, resolveViewFromLocation, type AppView } from './lib/routing';
 import { scrollToTop } from './lib/scroll';
 
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 
+/** List fetch omits blog body — keep existing content when remote only has placeholders. */
+function mergeBlogLists(prev: BlogPost[], fresh: BlogPost[]): BlogPost[] {
+  const prevById = new Map(prev.map((p) => [p.id, p]));
+  return fresh.map((item) => {
+    const existing = prevById.get(item.id);
+    const freshEmpty = !item.content?.ar?.trim() && !item.content?.en?.trim();
+    if (freshEmpty && existing?.content && (existing.content.ar || existing.content.en)) {
+      return { ...item, content: existing.content };
+    }
+    return item;
+  });
+}
+
 export default function App() {
   const [lang, setLang] = useState<Language>('ar');
   const [activeSection, setActiveSection] = useState('home');
-  const [isLoadingData, setIsLoadingData] = useState(false);
-  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(BLOG_POSTS);
-  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>(GALLERY);
-  const [doctors, setDoctors] = useState<Doctor[]>(DOCTORS);
+  /** Public site is dashboard/DB-only — never seed from static demo content. */
+  const [loadingDoctors, setLoadingDoctors] = useState(true);
+  const [loadingGallery, setLoadingGallery] = useState(true);
+  const [loadingBlogs, setLoadingBlogs] = useState(true);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
 
-  // Always resolve from the real URL — default is main (never auto-admin)
   const [currentView, setCurrentView] = useState<AppView>(() => {
     const { view } = resolveViewFromLocation();
     return view;
@@ -50,42 +66,99 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-
-    if (!sessionStorage.getItem('almaali_cache_v3')) {
+    // Bust older caches that mixed static demo data / oversized base64 blobs
+    if (!sessionStorage.getItem('almaali_cache_v4')) {
       clearSessionCache();
       sessionStorage.removeItem('almaali_cache_v2');
-      sessionStorage.setItem('almaali_cache_v3', '1');
+      sessionStorage.removeItem('almaali_cache_v3');
+      sessionStorage.setItem('almaali_cache_v4', '1');
     }
 
     let cancelled = false;
 
-    async function loadData() {
-      const [cachedBlogs, cachedGallery, cachedDoctors] = await Promise.all([
-        cachedFetch<BlogPost>('blogs', fetchBlogPostsFromSupabase, (fresh) => {
-          if (!cancelled) setBlogPosts(fresh);
-        }),
-        cachedFetch<GalleryItem>('gallery', fetchGalleryItemsFromSupabase, (fresh) => {
-          if (!cancelled) setGalleryItems(fresh);
-        }),
-        cachedFetch<Doctor>('doctors', fetchDoctorsFromSupabase, (fresh) => {
-          if (!cancelled) setDoctors(fresh);
-        }),
-      ]);
+    async function loadFromDashboard() {
+      if (!isSupabaseConfigured) {
+        if (!cancelled) {
+          setBlogPosts([]);
+          setGalleryItems([]);
+          setDoctors([]);
+          setLoadingBlogs(false);
+          setLoadingGallery(false);
+          setLoadingDoctors(false);
+        }
+        return;
+      }
 
-      if (cancelled) return;
-      if (cachedBlogs && cachedBlogs.length > 0) setBlogPosts(cachedBlogs);
-      if (cachedGallery && cachedGallery.length > 0) setGalleryItems(cachedGallery);
-      if (cachedDoctors && cachedDoctors.length > 0) setDoctors(cachedDoctors);
-      setIsLoadingData(false);
+      // Load each collection independently so one slow query can't block the others
+      const loadBlogs = fetchBlogPostsFromSupabase()
+        .then((liveBlogs) => {
+          if (cancelled) return;
+          setBlogPosts(liveBlogs ? (prev) => mergeBlogLists(prev, liveBlogs) : []);
+          if (liveBlogs) writeSessionCache('blogs', liveBlogs);
+        })
+        .catch((err) => {
+          console.error('[App] blogs load failed:', err);
+          if (!cancelled) setBlogPosts([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingBlogs(false);
+        });
+
+      const loadGallery = fetchGalleryItemsFromSupabase()
+        .then(async (liveGallery) => {
+          if (cancelled) return;
+          const list = liveGallery ?? [];
+          setGalleryItems(list);
+          if (liveGallery) writeSessionCache('gallery', liveGallery);
+          if (!cancelled) setLoadingGallery(false);
+
+          if (list.length === 0) return;
+          const hydrated = await hydrateGalleryImages(list, (id, image) => {
+            if (cancelled) return;
+            setGalleryItems((prev) => prev.map((g) => (g.id === id ? { ...g, image } : g)));
+          });
+          if (cancelled) return;
+          setGalleryItems(hydrated);
+          writeSessionCache('gallery', hydrated);
+        })
+        .catch((err) => {
+          console.error('[App] gallery load failed:', err);
+          if (!cancelled) setGalleryItems([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingGallery(false);
+        });
+
+      const loadDoctors = fetchDoctorsFromSupabase()
+        .then(async (liveDoctors) => {
+          if (cancelled) return;
+          const list = liveDoctors ?? [];
+          setDoctors(list);
+          if (liveDoctors) writeSessionCache('doctors', liveDoctors);
+          // Stop the section loader — portraits fill in right after
+          if (!cancelled) setLoadingDoctors(false);
+
+          if (list.length === 0) return;
+          const hydrated = await hydrateDoctorImages(list, (id, image) => {
+            if (cancelled) return;
+            setDoctors((prev) => prev.map((d) => (d.id === id ? { ...d, image } : d)));
+          });
+          if (cancelled) return;
+          setDoctors(hydrated);
+          writeSessionCache('doctors', hydrated);
+        })
+        .catch((err) => {
+          console.error('[App] doctors load failed:', err);
+          if (!cancelled) setDoctors([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingDoctors(false);
+        });
+
+      await Promise.all([loadBlogs, loadGallery, loadDoctors]);
     }
 
-    const hasCache = Boolean(sessionStorage.getItem('almaali_session_blogs'));
-    if (!hasCache) setIsLoadingData(true);
-
-    loadData().catch(() => {
-      if (!cancelled) setIsLoadingData(false);
-    });
+    loadFromDashboard();
 
     return () => {
       cancelled = true;
@@ -97,7 +170,6 @@ export default function App() {
     document.documentElement.lang = lang;
   }, [lang]);
 
-  /** Leave admin / go home — clears /admin from the URL so refresh won't reopen it. */
   const goHome = () => {
     window.history.replaceState(null, '', '/');
     setCurrentView('main');
@@ -110,7 +182,6 @@ export default function App() {
     setActivePostId(null);
   };
 
-  // Sync view from browser back/forward + hash changes
   useEffect(() => {
     const syncFromLocation = () => {
       const { view, postId } = resolveViewFromLocation();
@@ -125,7 +196,6 @@ export default function App() {
     window.addEventListener('popstate', syncFromLocation);
     window.addEventListener('hashchange', syncFromLocation);
 
-    // Safety: if URL is NOT /admin but state somehow is admin, force main
     if (!isAdminPath() && currentView === 'admin') {
       setCurrentView('main');
     }
@@ -137,7 +207,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Hidden admin entry: Ctrl/Cmd + Shift + A (no public footer button)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
@@ -184,33 +253,24 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [currentView]);
 
-  const refreshFromSupabase = async () => {
-    if (!isSupabaseConfigured) return;
-    clearSessionCache();
-    try {
-      const [liveBlogs, liveGallery, liveDoctors] = await Promise.all([
-        fetchBlogPostsFromSupabase(),
-        fetchGalleryItemsFromSupabase(),
-        fetchDoctorsFromSupabase(),
-      ]);
-      if (liveBlogs && liveBlogs.length > 0) {
-        setBlogPosts(liveBlogs);
-        sessionStorage.setItem('almaali_session_blogs', JSON.stringify(liveBlogs));
+  const handleContentCommit = useCallback(
+    (payload: { blogs?: BlogPost[]; gallery?: GalleryItem[]; doctors?: Doctor[] }) => {
+      if (payload.blogs) {
+        setBlogPosts(payload.blogs);
+        writeSessionCache('blogs', payload.blogs);
       }
-      if (liveGallery && liveGallery.length > 0) {
-        setGalleryItems(liveGallery);
-        sessionStorage.setItem('almaali_session_gallery', JSON.stringify(liveGallery));
+      if (payload.gallery) {
+        setGalleryItems(payload.gallery);
+        writeSessionCache('gallery', payload.gallery);
       }
-      if (liveDoctors && liveDoctors.length > 0) {
-        setDoctors(liveDoctors);
-        sessionStorage.setItem('almaali_session_doctors', JSON.stringify(liveDoctors));
+      if (payload.doctors) {
+        setDoctors(payload.doctors);
+        writeSessionCache('doctors', payload.doctors);
       }
-    } catch {
-      /* keep current state */
-    }
-  };
+    },
+    []
+  );
 
-  // Hard gate: never render admin unless URL is exactly /admin
   if (currentView === 'admin' && isAdminPath()) {
     return (
       <Suspense
@@ -222,6 +282,7 @@ export default function App() {
       >
         <AdminDashboard
           lang={lang}
+          isOpen
           onClose={goHome}
           blogPosts={blogPosts}
           setBlogPosts={setBlogPosts}
@@ -229,7 +290,7 @@ export default function App() {
           setGalleryItems={setGalleryItems}
           doctors={doctors}
           setDoctors={setDoctors}
-          onDataSaved={refreshFromSupabase}
+          onContentCommit={handleContentCommit}
         />
       </Suspense>
     );
@@ -252,10 +313,10 @@ export default function App() {
             <Hero lang={lang} />
             <About lang={lang} />
             <Services lang={lang} />
-            <Team lang={lang} doctors={doctors} isLoading={isLoadingData} />
-            <Gallery lang={lang} galleryItems={galleryItems} isLoading={isLoadingData} />
+            <Team lang={lang} doctors={doctors} isLoading={loadingDoctors} />
+            <Gallery lang={lang} galleryItems={galleryItems} isLoading={loadingGallery} />
             <Testimonials lang={lang} />
-            <Blog lang={lang} blogPosts={blogPosts} currentView="main" />
+            <Blog lang={lang} blogPosts={blogPosts} isLoading={loadingBlogs} currentView="main" />
             <CTA lang={lang} />
           </main>
         ) : (
@@ -263,6 +324,7 @@ export default function App() {
             <Blog
               lang={lang}
               blogPosts={blogPosts}
+              isLoading={loadingBlogs}
               currentView={currentView}
               activePostId={activePostId}
             />

@@ -6,16 +6,18 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, Loader2 } from 'lucide-react';
 import { BlogPost, Language } from '../types';
-import { BLOG_POSTS as STATIC_BLOG_POSTS, TRANSLATIONS } from '../data';
+import { TRANSLATIONS } from '../data';
 import { fetchBlogPostContent, isSupabaseConfigured } from '../lib/supabase';
 import SectionReveal from './ui/SectionReveal';
 import SafeImage from './ui/SafeImage';
+import ContentStatus from './ui/ContentStatus';
 import { IMAGES, resolveImage, WHATSAPP } from '../lib/images';
 import { scrollToTop } from '../lib/scroll';
 
 interface BlogProps {
   lang: Language;
   blogPosts?: BlogPost[];
+  isLoading?: boolean;
   currentView?: 'main' | 'blog' | 'blog-post' | 'admin';
   activePostId?: string | null;
 }
@@ -68,13 +70,14 @@ function PostCard({
 
 export default function Blog({
   lang,
-  blogPosts,
+  blogPosts = [],
+  isLoading = true,
   currentView = 'main',
   activePostId = null,
 }: BlogProps) {
   const t = TRANSLATIONS[lang];
   const isRtl = lang === 'ar';
-  const displayBlog = blogPosts || STATIC_BLOG_POSTS;
+  const displayBlog = blogPosts;
   const [readingProgress, setReadingProgress] = useState(0);
   const [loadedContent, setLoadedContent] = useState<{ ar: string; en: string } | null>(null);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
@@ -152,13 +155,18 @@ export default function Blog({
             </h2>
           </SectionReveal>
 
-          {previewPosts.length === 0 ? (
-            <div className="mt-14 border border-ink/10 bg-bg-light p-10 text-center">
-              <BookOpen className="mx-auto text-bronze" />
-              <p className="mt-4 font-display text-2xl text-ink">
-                {isRtl ? 'لا توجد مقالات حالياً' : 'No articles yet'}
-              </p>
-            </div>
+          {isLoading ? (
+            <ContentStatus
+              lang={lang}
+              status="loading"
+              className="mt-14 border border-ink/10 bg-bg-light"
+            />
+          ) : previewPosts.length === 0 ? (
+            <ContentStatus
+              lang={lang}
+              status="empty"
+              className="mt-14 border border-ink/10 bg-bg-light"
+            />
           ) : (
             <>
               <div className="mt-14 grid gap-5 md:grid-cols-3">
@@ -204,13 +212,27 @@ export default function Blog({
             </h1>
             <p className="mt-4 max-w-2xl text-muted">{t.blogSectionSubtitle}</p>
           </SectionReveal>
-          <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {displayBlog.map((post, idx) => (
-              <SectionReveal key={post.id} delay={idx * 0.04}>
-                <PostCard post={post} lang={lang} onOpen={() => handleNavigateToPost(post.id)} />
-              </SectionReveal>
-            ))}
-          </div>
+          {isLoading ? (
+            <ContentStatus
+              lang={lang}
+              status="loading"
+              className="mt-12 border border-ink/10 bg-bg-light"
+            />
+          ) : displayBlog.length === 0 ? (
+            <ContentStatus
+              lang={lang}
+              status="empty"
+              className="mt-12 border border-ink/10 bg-bg-light"
+            />
+          ) : (
+            <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {displayBlog.map((post, idx) => (
+                <SectionReveal key={post.id} delay={idx * 0.04}>
+                  <PostCard post={post} lang={lang} onOpen={() => handleNavigateToPost(post.id)} />
+                </SectionReveal>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );

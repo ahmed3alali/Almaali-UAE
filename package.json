@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test:auth": "node create-admin.mjs"
+    "test:auth": "node create-admin.mjs",
+    "migrate:images": "node migrate-images.mjs"
   },
   "dependencies": {
     "@dawod/thmanyah-font-web": "^1.2.0",

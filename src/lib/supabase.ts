@@ -231,7 +231,12 @@ export async function fetchBlogPostsFromSupabase(): Promise<BlogPost[] | null> {
       date: row.date,
       readTime: row.read_time,
       category: row.category,
-      image: row.image,
+      // Prefer remote URLs; tiny data: thumbs are ok (<100KB), else placeholder
+      image: publicImageUrl(row.image) || (
+        typeof row.image === 'string' && row.image.startsWith('data:') && row.image.length < 100_000
+          ? row.image
+          : ''
+      ),
       author: row.author
     }));
   } catch (err) {
@@ -262,6 +267,9 @@ export async function fetchBlogPostContent(postId: string): Promise<{ ar: string
 export async function saveBlogPostToSupabase(post: BlogPost): Promise<boolean> {
   if (!supabase) return false;
   try {
+    const image = await resolveStoredImage(post.image, 'blog', post.id);
+    if (image === null) return false;
+
     const dbPayload = {
       id: post.id,
       title: post.title,
@@ -270,7 +278,7 @@ export async function saveBlogPostToSupabase(post: BlogPost): Promise<boolean> {
       date: post.date,
       read_time: post.readTime, // map camelCase to snake_case
       category: post.category,
-      image: post.image,
+      image,
       author: post.author
     };
 
@@ -313,43 +321,87 @@ export async function deleteBlogPostFromSupabase(id: string): Promise<boolean> {
 export async function fetchGalleryItemsFromSupabase(): Promise<GalleryItem[] | null> {
   if (!supabase) { if (isDev) console.warn('[Supabase] fetchGallery: client is null, skipping'); return null; }
   try {
-    logDev('[Supabase] Fetching gallery_items...');
+    logDev('[Supabase] Fetching gallery_items (fast)...');
+    // Metadata first — avoid downloading inline base64 payloads
     const { data, error } = await supabase
       .from('gallery_items')
-      .select('id, title, category, image, description')
+      .select('id, title, category, description')
       .order('created_at', { ascending: true })
       .limit(50);
-
 
     if (error) {
       console.error('[Supabase] Error fetching gallery_items:', error.message, error);
       return null;
     }
-    logDev('[Supabase] gallery_items fetched:', data?.length ?? 0, 'rows');
 
-    return (data || []).map(row => ({
+    const items: GalleryItem[] = (data || []).map((row) => ({
       id: row.id,
       title: row.title,
       category: row.category,
-      image: row.image,
-      description: row.description
+      image: '',
+      description: row.description,
     }));
+
+    const { data: imageRows } = await supabase
+      .from('gallery_items')
+      .select('id, image')
+      .like('image', 'http%')
+      .limit(50);
+
+    const byId = new Map((imageRows || []).map((r) => [String(r.id), publicImageUrl(r.image)]));
+    return items.map((item) => ({ ...item, image: byId.get(item.id) || '' }));
   } catch (err) {
     console.error('Unhandled error in fetchGalleryItemsFromSupabase:', err);
     return null;
   }
 }
 
+/** Fill in gallery photos (incl. legacy base64) after the fast list is on screen. */
+export async function hydrateGalleryImages(
+  items: GalleryItem[],
+  onUpdate?: (id: string, image: string) => void
+): Promise<GalleryItem[]> {
+  if (!supabase || items.length === 0) return items;
+  const missing = items.filter((g) => !publicImageUrl(g.image));
+  if (missing.length === 0) return items;
+
+  const next = [...items];
+  await Promise.all(
+    missing.map(async (item) => {
+      try {
+        const { data, error } = await supabase!
+          .from('gallery_items')
+          .select('image')
+          .eq('id', item.id)
+          .maybeSingle();
+        if (error || !data?.image || typeof data.image !== 'string') return;
+        let image = data.image;
+        if (image.startsWith('data:')) image = await compressDataUrlForDisplay(image);
+        else if (!image.startsWith('http')) return;
+        const idx = next.findIndex((g) => g.id === item.id);
+        if (idx >= 0) next[idx] = { ...next[idx], image };
+        onUpdate?.(item.id, image);
+      } catch (err) {
+        console.warn(`[DB] hydrate gallery failed for ${item.id}:`, err);
+      }
+    })
+  );
+  return next;
+}
+
 export async function saveGalleryItemToSupabase(item: GalleryItem): Promise<boolean> {
   if (!supabase) return false;
   try {
+    const image = await resolveStoredImage(item.image, 'gallery', item.id);
+    if (image === null) return false;
+
     const { error } = await supabase
       .from('gallery_items')
       .upsert({
         id: item.id,
         title: item.title,
         category: item.category,
-        image: item.image,
+        image,
         description: item.description
       }, { onConflict: 'id' });
 
@@ -385,31 +437,129 @@ export async function deleteGalleryItemFromSupabase(id: string): Promise<boolean
 
 // --- TEAM/DOCTORS OPERATIONS ---
 
+function asLocaleText(value: unknown, fallback = ''): { ar: string; en: string } {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    return {
+      ar: typeof obj.ar === 'string' ? obj.ar : fallback,
+      en: typeof obj.en === 'string' ? obj.en : fallback,
+    };
+  }
+  if (typeof value === 'string') return { ar: value, en: value };
+  return { ar: fallback, en: fallback };
+}
+
+function asLocaleList(value: unknown): { ar: string[]; en: string[] } {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    const toList = (v: unknown) =>
+      Array.isArray(v) ? v.map(String).map((s) => s.trim()).filter(Boolean) : [];
+    return { ar: toList(obj.ar), en: toList(obj.en) };
+  }
+  if (Array.isArray(value)) {
+    const list = value.map(String).map((s) => s.trim()).filter(Boolean);
+    return { ar: list, en: list };
+  }
+  return { ar: [], en: [] };
+}
+
+/** Public CDN/http images only — never pull multi‑MB `data:` blobs over the wire. */
+function publicImageUrl(image: unknown): string {
+  if (typeof image !== 'string') return '';
+  const trimmed = image.trim();
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) return trimmed;
+  return '';
+}
+
+/**
+ * Refuse to persist inline base64 in Postgres (it makes public reads multi‑second / multi‑MB).
+ * Prefer Supabase Storage URLs from uploadBase64Image().
+ */
+async function resolveStoredImage(
+  image: string,
+  folder: string,
+  fileName: string
+): Promise<string | null> {
+  if (!image) return '';
+  if (image.startsWith('http://') || image.startsWith('https://')) return image;
+  if (image.startsWith('data:')) {
+    const uploaded = await uploadBase64Image(image, folder, fileName);
+    if (uploaded) return uploaded;
+    console.error(`[DB] Refusing to store base64 image for ${folder}/${fileName} — upload failed`);
+    return null;
+  }
+  return image;
+}
+
+function mapDoctorRow(row: Record<string, unknown>, imageOverride?: string): Doctor {
+  return {
+    id: String(row.id ?? ''),
+    name: asLocaleText(row.name),
+    role: asLocaleText(row.role),
+    bio: asLocaleText(row.bio),
+    specialties: asLocaleList(row.specialties),
+    education: asLocaleText(row.education),
+    image: imageOverride ?? publicImageUrl(row.image),
+  };
+}
+
+/**
+ * Fast public doctors fetch:
+ * 1) metadata only (~2KB / ~100ms)
+ * 2) attach only http(s) image URLs (skips multi‑MB base64 rows)
+ */
 export async function fetchDoctorsFromSupabase(): Promise<Doctor[] | null> {
   if (!supabase) return null;
   try {
-
-    const { data, error } = await supabase
+    const metaQuery = await supabase
       .from('doctors')
-      .select('id, name, role, bio, specialties, education, image')
+      .select('id, name, role, bio, specialties, education')
       .order('created_at', { ascending: true })
-      .limit(20);
+      .limit(50);
 
-    logDev('[DB] fetchDoctors result:', { dataLen: data?.length, error: error?.message });
+    let rows = metaQuery.data as Record<string, unknown>[] | null;
+    let error = metaQuery.error;
+
+    if (error) {
+      console.warn('[DB] fetchDoctors ordered meta failed:', error.message);
+      const retry = await supabase
+        .from('doctors')
+        .select('id, name, role, bio, specialties, education')
+        .limit(50);
+      rows = retry.data as Record<string, unknown>[] | null;
+      error = retry.error;
+    }
 
     if (error) {
       console.warn('Error fetching doctors from Supabase:', error.message);
       return null;
     }
 
-    return (data || []).map(row => ({
-      id: row.id,
-      name: row.name,
-      role: row.role,
-      bio: row.bio,
-      specialties: row.specialties,
-      education: row.education,
-      image: row.image
+    const doctors = (rows || [])
+      .map((row) => mapDoctorRow(row, ''))
+      .filter((d) => Boolean(d.id));
+
+    // Lightweight second query — `like.http%` matches http and https
+    const { data: imageRows, error: imageError } = await supabase
+      .from('doctors')
+      .select('id, image')
+      .like('image', 'http%')
+      .limit(50);
+
+    if (imageError) {
+      console.warn('[DB] doctor image URL fetch skipped:', imageError.message);
+      return doctors;
+    }
+
+    const byId = new Map(
+      (imageRows || []).map((r) => [String(r.id), publicImageUrl(r.image)])
+    );
+
+    logDev('[DB] fetchDoctors fast path:', { doctors: doctors.length, remoteImages: byId.size });
+
+    return doctors.map((d) => ({
+      ...d,
+      image: byId.get(d.id) || '',
     }));
   } catch (err) {
     console.error('Unhandled error in fetchDoctorsFromSupabase:', err);
@@ -417,9 +567,89 @@ export async function fetchDoctorsFromSupabase(): Promise<Doctor[] | null> {
   }
 }
 
+/**
+ * After the fast list loads, pull real photos one-by-one (including legacy base64)
+ * so the UI stays responsive while portraits appear.
+ * Optionally compress huge base64 before returning.
+ */
+export async function hydrateDoctorImages(
+  doctors: Doctor[],
+  onUpdate?: (doctorId: string, image: string) => void
+): Promise<Doctor[]> {
+  if (!supabase || doctors.length === 0) return doctors;
+
+  const missing = doctors.filter((d) => !publicImageUrl(d.image));
+  if (missing.length === 0) return doctors;
+
+  const next = [...doctors];
+
+  await Promise.all(
+    missing.map(async (doc) => {
+      try {
+        const { data, error } = await supabase!
+          .from('doctors')
+          .select('image')
+          .eq('id', doc.id)
+          .maybeSingle();
+
+        if (error || !data?.image || typeof data.image !== 'string') return;
+
+        let image = data.image;
+        if (image.startsWith('http://') || image.startsWith('https://')) {
+          // keep
+        } else if (image.startsWith('data:')) {
+          image = await compressDataUrlForDisplay(image);
+        } else {
+          return;
+        }
+
+        const idx = next.findIndex((d) => d.id === doc.id);
+        if (idx >= 0) next[idx] = { ...next[idx], image };
+        onUpdate?.(doc.id, image);
+      } catch (err) {
+        console.warn(`[DB] hydrate image failed for ${doc.id}:`, err);
+      }
+    })
+  );
+
+  return next;
+}
+
+/** Shrink oversized data-URLs so portraits don't freeze the tab. */
+async function compressDataUrlForDisplay(dataUrl: string): Promise<string> {
+  if (typeof document === 'undefined') return dataUrl;
+  if (dataUrl.length < 400_000) return dataUrl;
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = dataUrl;
+    });
+
+    const maxSide = 1100;
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL('image/jpeg', 0.78);
+  } catch {
+    return dataUrl;
+  }
+}
+
 export async function saveDoctorToSupabase(doctor: Doctor): Promise<boolean> {
   if (!supabase) return false;
   try {
+    const image = await resolveStoredImage(doctor.image, 'doctor', doctor.id);
+    if (image === null) return false;
+
     const { error } = await supabase
       .from('doctors')
       .upsert({
@@ -429,7 +659,7 @@ export async function saveDoctorToSupabase(doctor: Doctor): Promise<boolean> {
         bio: doctor.bio,
         specialties: doctor.specialties,
         education: doctor.education,
-        image: doctor.image
+        image,
       }, { onConflict: 'id' });
 
     if (error) {
@@ -476,46 +706,63 @@ export async function migrateBase64ImagesToStorage(
   const result: MigrationResult = { totalBase64: 0, migrated: 0, failed: 0, details: [] };
   if (!supabase) return result;
 
-  const log = (msg: string) => { result.details.push(msg); onProgress?.(msg); };
+  const log = (msg: string) => {
+    result.details.push(msg);
+    onProgress?.(msg);
+  };
 
-  // Find all base64 images across all tables
   const tables = [
-    { name: 'blog_posts', idField: 'id', folder: 'blog' },
-    { name: 'gallery_items', idField: 'id', folder: 'gallery' },
-    { name: 'doctors', idField: 'id', folder: 'doctors' },
+    { name: 'blog_posts', folder: 'blog' },
+    { name: 'gallery_items', folder: 'gallery' },
+    { name: 'doctors', folder: 'doctors' },
   ] as const;
 
   for (const table of tables) {
-    const { data: rows, error } = await supabase
-      .from(table.name)
-      .select('id, image');
-    if (error || !rows) { log(`❌ ${table.name}: ${error?.message}`); continue; }
+    // IDs only — never select all images in one payload
+    const { data: idRows, error } = await supabase.from(table.name).select('id');
+    if (error || !idRows) {
+      log(`❌ ${table.name}: ${error?.message}`);
+      continue;
+    }
 
-    const base64Rows = rows.filter(r => r.image && typeof r.image === 'string' && r.image.startsWith('data:'));
-    if (base64Rows.length === 0) { log(`✅ ${table.name}: no base64 images`); continue; }
+    let tableBase64 = 0;
 
-    result.totalBase64 += base64Rows.length;
-    log(`🔄 ${table.name}: ${base64Rows.length} base64 images found`);
+    for (const { id } of idRows) {
+      const { data: row, error: rowErr } = await supabase
+        .from(table.name)
+        .select('id, image')
+        .eq('id', id)
+        .maybeSingle();
 
-    for (const row of base64Rows) {
-      const url = await uploadBase64Image(row.image, table.folder, row.id);
+      if (rowErr || !row?.image || typeof row.image !== 'string') continue;
+      if (!row.image.startsWith('data:')) continue;
+
+      tableBase64++;
+      result.totalBase64++;
+      log(`🔄 ${table.name}/${id}: uploading…`);
+
+      const url = await uploadBase64Image(row.image, table.folder, id);
       if (!url) {
         result.failed++;
-        log(`  ❌ ${row.id}: upload failed`);
+        log(`  ❌ ${id}: upload failed`);
         continue;
       }
+
       const { error: updateErr } = await supabase
         .from(table.name)
         .update({ image: url })
-        .eq('id', row.id);
+        .eq('id', id);
+
       if (updateErr) {
         result.failed++;
-        log(`  ❌ ${row.id}: DB update failed — ${updateErr.message}`);
+        log(`  ❌ ${id}: DB update failed — ${updateErr.message}`);
       } else {
         result.migrated++;
-        log(`  ✅ ${row.id}: migrated`);
+        log(`  ✅ ${id}`);
       }
     }
+
+    if (tableBase64 === 0) log(`✅ ${table.name}: no base64 images`);
   }
 
   return result;
