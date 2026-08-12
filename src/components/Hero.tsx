@@ -41,7 +41,7 @@ export default function Hero({ lang }: HeroProps) {
     <section
       id="home"
       ref={ref}
-      className="relative min-h-[100svh] overflow-hidden bg-bg-dark text-bg-light"
+      className="relative min-h-[100svh] overflow-x-hidden bg-bg-dark text-bg-light"
     >
       <motion.div style={reduced ? undefined : { y, scale: scaleBg }} className="absolute inset-0">
         <SafeImage
@@ -73,10 +73,10 @@ export default function Hero({ lang }: HeroProps) {
 
           <motion.h1
             key={`hero-title-${lang}`}
-            initial={reduced ? false : { opacity: 0, y: 48, filter: 'blur(10px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            initial={reduced ? false : { opacity: 0, y: 48 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.1, delay: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-5 max-w-5xl font-display text-display text-balance"
+            className="mt-5 max-w-5xl overflow-visible font-display text-display text-balance"
           >
             {titleParts.before}
             <motion.em

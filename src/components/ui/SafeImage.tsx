@@ -22,8 +22,19 @@ export default function SafeImage({
   fetchPriority,
   parallax = false,
 }: SafeImageProps) {
-  const [current, setCurrent] = useState(resolveImage(src, fallback));
+  const resolved = resolveImage(src, fallback || '');
+  const [current, setCurrent] = useState(resolved);
   const [failedOnce, setFailedOnce] = useState(false);
+
+  if (!current) {
+    return (
+      <div
+        className={cn('bg-bg-warm', className)}
+        role="img"
+        aria-label={alt}
+      />
+    );
+  }
 
   return (
     <motion.img
@@ -38,7 +49,7 @@ export default function SafeImage({
       onError={() => {
         if (!failedOnce) {
           setFailedOnce(true);
-          setCurrent(fallback);
+          setCurrent(fallback || '');
         }
       }}
     />

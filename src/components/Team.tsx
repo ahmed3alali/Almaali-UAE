@@ -8,7 +8,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { ArrowUpRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Doctor, Language } from '../types';
 import { TRANSLATIONS } from '../data';
-import { IMAGES, resolveImage, whatsappDoctorMessage } from '../lib/images';
+import { whatsappDoctorMessage } from '../lib/images';
 import { localeText } from '../lib/i18n';
 import SectionReveal from './ui/SectionReveal';
 import SafeImage from './ui/SafeImage';
@@ -26,7 +26,6 @@ export default function Team({ lang, doctors, isLoading = true }: TeamProps) {
   const t = TRANSLATIONS[lang];
   const isRtl = lang === 'ar';
   const reduced = useReducedMotion();
-  const fallbacks = [IMAGES.placeholders.doctor, IMAGES.testimonials.t2, IMAGES.testimonials.t3];
 
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -172,14 +171,22 @@ export default function Team({ lang, doctors, isLoading = true }: TeamProps) {
                 whileHover={reduced ? undefined : { y: -8 }}
                 transition={{ type: 'spring', stiffness: 220, damping: 22 }}
               >
-                <div className="aspect-[3/4] overflow-hidden">
-                  <SafeImage
-                    src={resolveImage(doctor.image, fallbacks[index % fallbacks.length])}
-                    alt={localeText(doctor.name, lang)}
-                    fallback={fallbacks[index % fallbacks.length]}
-                    className="h-full w-full img-grade transition duration-700 ease-[var(--ease-out-expo)] group-hover:scale-110"
-                    parallax
-                  />
+                <div className="aspect-[3/4] overflow-hidden bg-white/5">
+                  {doctor.image?.trim() ? (
+                    <SafeImage
+                      src={doctor.image}
+                      alt={localeText(doctor.name, lang)}
+                      fallback=""
+                      className="h-full w-full img-grade transition duration-700 ease-[var(--ease-out-expo)] group-hover:scale-110"
+                      parallax
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-white/10 to-white/5">
+                      <span className="font-display text-6xl text-gold/40">
+                        {localeText(doctor.name, lang).trim().charAt(0) || '·'}
+                      </span>
+                    </div>
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-bg-dark via-bg-dark/20 to-transparent" />
                   <div className="absolute inset-0 bg-gradient-to-t from-bronze/40 via-transparent to-transparent opacity-0 transition duration-500 group-hover:opacity-100" />
                 </div>

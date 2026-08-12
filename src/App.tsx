@@ -253,11 +253,14 @@ export default function App() {
         .then(async (liveDoctors) => {
           if (cancelled) return;
           const list = liveDoctors ?? [];
-          setDoctors(list);
-          if (liveDoctors) writeSessionCache('doctors', liveDoctors);
-          if (!cancelled) setLoadingDoctors(false);
+          // Keep the section in loading until portraits are resolved — avoids stock placeholders flashing
+          if (list.length === 0) {
+            setDoctors([]);
+            if (liveDoctors) writeSessionCache('doctors', []);
+            return;
+          }
 
-          if (list.length === 0) return;
+          setDoctors(list.map((d) => ({ ...d, image: d.image || '' })));
           const hydrated = await hydrateDoctorImages(list, (id, image) => {
             if (cancelled) return;
             setDoctors((prev) => prev.map((d) => (d.id === id ? { ...d, image } : d)));

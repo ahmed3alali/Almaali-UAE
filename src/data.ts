@@ -9,7 +9,7 @@ import { STOCK } from './lib/images';
 export const TRANSLATIONS = {
   ar: {
     brandName: "عيادات المعالي",
-    brandSubtitle: "فن نحت الابتسامة الفاخرة",
+    brandSubtitle: "فن نحت الابتسامة ",
     tagline: "حيث تجتمع الدقة متناهية الصغر مع الرفاهية المطلقة",
     seoTitle: "عيادات المعالي | طب أسنان فاخر في الإمارات",
     seoDescription:
@@ -36,7 +36,7 @@ export const TRANSLATIONS = {
     // Hero
     heroTitle: "ابتسامتك هي توقيعك الفريد",
     heroSubtitle: "في عيادات المعالي، لا نكتفي بتقديم علاجات نمطية؛ بل ننحت ابتسامة متناسقة تعزز ملامحك وتعبر عن ذاتك في ملاذٍ طبي مريحٍ يبتعد تمامًا عن أجواء العيادات التقليدية الباردة.",
-    heroCTA: "تواصل معنا للاستشارة الفاخرة",
+    heroCTA: "تواصل معنا للاستشارة ",
     heroExperience: "تجربة استثنائية",
     heroPrecise: "دقة متناهية",
     heroRelax: "ملاذ دافئ",
@@ -244,7 +244,7 @@ export const SERVICES: Service[] = [
     id: "smile-design",
     iconName: "Gem",
     title: {
-      ar: "تصميم الابتسامة ثلاثي الأبعاد والعدسات الفاخرة",
+      ar: "تصميم الابتسامة ثلاثي الأبعاد والعدسات ",
       en: "Bespoke 3D Smile Design & Ultra-Thin Veneers"
     },
     description: {
@@ -505,8 +505,8 @@ export const TESTIMONIALS: Testimonial[] = [
   {
     id: "t3",
     name: {
-      ar: "هديل الكتبي",
-      en: "Hadeel Al Ketbi"
+      ar: "هلال الكتبي",
+      en: "Hilal Al Ketbi"
     },
     rating: 5,
     comment: {
@@ -615,7 +615,7 @@ export const BLOG_POSTS: BlogPost[] = [
       en: "Discover how advanced operating microscopes allow our team to detect microscopic dental details and offer exceptionally durable treatments."
     },
     content: {
-      ar: "في عيادات المعالي، نؤمن بأن التفاصيل الصغيرة هي التي تصنع الفارق الأكبر. استخدام المجهر المطور في علاج الأسنان لا يعد مجرد رفاهية، بل هو معيار علمي متقدم يضمن الحفاظ على الأنسجة الطبيعية السليمة للأسنان بأقصى قدر ممكن. بفضل التكبير الفائق الذي يصل إلى 20 ضعفاً، يتمكن أطباؤنا من رؤية التشققات المجهرية الدقيقة، وتنظيف القنوات الجذرية المعقدة بمنتهى المثالية، ونحت حواف التركيبات التجميلية بدقة خالية من الفراغات، مما يمنع حدوث التسوس الثانوي ويضمن استدامة ابتسامتك الفاخرة لسنوات طويلة.",
+      ar: "في عيادات المعالي، نؤمن بأن التفاصيل الصغيرة هي التي تصنع الفارق الأكبر. استخدام المجهر المطور في علاج الأسنان لا يعد مجرد رفاهية، بل هو معيار علمي متقدم يضمن الحفاظ على الأنسجة الطبيعية السليمة للأسنان بأقصى قدر ممكن. بفضل التكبير الفائق الذي يصل إلى 20 ضعفاً، يتمكن أطباؤنا من رؤية التشققات المجهرية الدقيقة، وتنظيف القنوات الجذرية المعقدة بمنتهى المثالية، ونحت حواف التركيبات التجميلية بدقة خالية من الفراغات، مما يمنع حدوث التسوس الثانوي ويضمن استدامة ابتسامتك  لسنوات طويلة.",
       en: "At Al Maali Clinics, we believe that the smallest details make the biggest difference. The use of advanced dental operating microscopes is not a mere luxury; it is a clinical standard that ensures maximum preservation of healthy tooth structure. With magnification up to 20x, our specialists can identify micro-fractures, clean intricate root canal networks flawlessly, and contour veneer margins with seamless accuracy, preventing secondary decay and securing the long-term success of your premium dental restorations."
     },
     date: {
@@ -671,7 +671,7 @@ export const BLOG_POSTS: BlogPost[] = [
   {
     id: "b3",
     title: {
-      ar: "كيف تحافظ على بريق عدسات الفينير؟ دليل الرعاية الوقائية الفاخرة",
+      ar: "كيف تحافظ على بريق عدسات الفينير؟ دليل الرعاية الوقائية ",
       en: "Maintaining the Luster of Your Veneers: The Luxury Prevention Guide"
     },
     excerpt: {
@@ -679,7 +679,7 @@ export const BLOG_POSTS: BlogPost[] = [
       en: "Expert advice and straightforward preventive routines from our doctors to protect the brilliance of your smile."
     },
     content: {
-      ar: "الحصول على ابتسامة أحلامك هو البداية فقط، والحفاظ على رونقها يتطلب وعياً بأساليب الرعاية اليومية الفاخرة. يوصي أطباؤنا في عيادات المعالي باستخدام فراشي أسنان ذات شعيرات ناعمة جداً مع معاجين أسنان خالية من المواد الكاشطة لمنع خدش أسطح السيراميك الحساسة. كما يُنصح بشدة بارتداء واقي الأسنان الليلي (Night Guard) في حال وجود صرير أسنان غير واعي لحماية العدسات التجميلية من قوى الضغط الزائد. وأخيراً، فإن الزيارة الدورية المريحة لخدمة التنظيف المجهري التخصصي كل 6 أشهر تضمن إبقاء اللثة في حالة صحية فائقة تدعم جمال أسنانك.",
+      ar: "الحصول على ابتسامة أحلامك هو البداية فقط، والحفاظ على رونقها يتطلب وعياً بأساليب الرعاية اليومية . يوصي أطباؤنا في عيادات المعالي باستخدام فراشي أسنان ذات شعيرات ناعمة جداً مع معاجين أسنان خالية من المواد الكاشطة لمنع خدش أسطح السيراميك الحساسة. كما يُنصح بشدة بارتداء واقي الأسنان الليلي (Night Guard) في حال وجود صرير أسنان غير واعي لحماية العدسات التجميلية من قوى الضغط الزائد. وأخيراً، فإن الزيارة الدورية المريحة لخدمة التنظيف المجهري التخصصي كل 6 أشهر تضمن إبقاء اللثة في حالة صحية فائقة تدعم جمال أسنانك.",
       en: "Acquiring your dream smile is just the beginning; protecting its brilliance requires mindful, upscale daily care. Our team at Al Maali Clinics recommends ultra-soft bristled toothbrushes paired with non-abrasive toothpastes to prevent microscopic scratches on delicate porcelain surfaces. We also highly advocate using a custom-made Night Guard if you unconsciously clench your teeth during sleep. Finally, attending your regular professional microscopic hygiene appointments every 6 months ensures your gum tissue remains in pristine condition to elegantly frame your smile."
     },
     date: {

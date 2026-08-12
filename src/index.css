@@ -110,25 +110,27 @@
 
   .text-display {
     font-size: var(--text-display);
-    line-height: 0.95;
+    line-height: 1.05;
     letter-spacing: -0.02em;
   }
 
   html[lang='ar'] .text-display,
   html[dir='rtl'] .text-display {
-    line-height: 1.2;
+    line-height: 1.45;
     letter-spacing: -0.01em;
+    padding-block: 0.12em;
   }
 
   .text-display-sm {
     font-size: var(--text-display-sm);
-    line-height: 1.05;
+    line-height: 1.15;
     letter-spacing: -0.015em;
   }
 
   html[lang='ar'] .text-display-sm,
   html[dir='rtl'] .text-display-sm {
-    line-height: 1.25;
+    line-height: 1.4;
+    padding-block: 0.08em;
   }
 
   .text-title {

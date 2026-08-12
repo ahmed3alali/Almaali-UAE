@@ -11,7 +11,7 @@ import { fetchBlogPostContent, isSupabaseConfigured } from '../lib/supabase';
 import SectionReveal from './ui/SectionReveal';
 import SafeImage from './ui/SafeImage';
 import ContentStatus from './ui/ContentStatus';
-import { IMAGES, resolveImage, WHATSAPP } from '../lib/images';
+import { WHATSAPP } from '../lib/images';
 import { scrollToTop } from '../lib/scroll';
 import { localeBlogPath, localeHome } from '../lib/routing';
 import { localeText } from '../lib/i18n';
@@ -35,6 +35,7 @@ function PostCard({
 }): ReactElement {
   const t = TRANSLATIONS[lang];
   const isRtl = lang === 'ar';
+  const hasImage = Boolean(post.image?.trim());
 
   return (
     <article
@@ -42,11 +43,18 @@ function PostCard({
       className="group flex h-full cursor-pointer flex-col border border-ink/10 bg-bg-light transition duration-400 hover:border-ink/25"
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-bg-warm">
-        <SafeImage
-          src={resolveImage(post.image, IMAGES.placeholders.blog)}
-          alt={localeText(post.title, lang)}
-          className="h-full w-full transition duration-700 ease-[var(--ease-out-expo)] group-hover:scale-[1.03] img-grade"
-        />
+        {hasImage ? (
+          <SafeImage
+            src={post.image}
+            alt={localeText(post.title, lang)}
+            fallback=""
+            className="h-full w-full transition duration-700 ease-[var(--ease-out-expo)] group-hover:scale-[1.03] img-grade"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-bg-warm to-bg-light">
+            <BookOpen className="text-bronze/35" size={36} strokeWidth={1.25} />
+          </div>
+        )}
       </div>
       <div className="flex grow flex-col p-6 md:p-7">
         <p className="text-[11px] font-medium tracking-wide text-bronze">
@@ -242,7 +250,21 @@ export default function Blog({
   }
 
   if (currentView === 'blog-post') {
-    const activePost = displayBlog.find((p) => p.id === activePostId) || displayBlog[0];
+    if (isLoading) {
+      return (
+        <div className="min-h-screen bg-bg-light pb-24 pt-8">
+          <div className="container-premium">
+            <ContentStatus
+              lang={lang}
+              status="loading"
+              className="mt-12 border border-ink/10 bg-bg-light"
+            />
+          </div>
+        </div>
+      );
+    }
+
+    const activePost = displayBlog.find((p) => p.id === activePostId);
     if (!activePost) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-bg-light p-6 text-center">
@@ -307,11 +329,18 @@ export default function Blog({
 
         <div className="container-premium">
           <div className="mx-auto mt-10 max-w-3xl overflow-hidden md:mt-14">
-            <SafeImage
-              src={resolveImage(activePost.image, IMAGES.placeholders.blog)}
-              alt={localeText(activePost.title, lang)}
-              className="aspect-[16/9] w-full img-grade"
-            />
+            {activePost.image?.trim() ? (
+              <SafeImage
+                src={activePost.image}
+                alt={localeText(activePost.title, lang)}
+                fallback=""
+                className="aspect-[16/9] w-full img-grade"
+              />
+            ) : (
+              <div className="flex aspect-[16/9] w-full items-center justify-center bg-bg-warm">
+                <BookOpen className="text-bronze/35" size={40} strokeWidth={1.25} />
+              </div>
+            )}
           </div>
 
           <article className="mx-auto mt-10 max-w-2xl md:mt-14">

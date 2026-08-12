@@ -1138,7 +1138,7 @@ export async function deleteTestimonialFromSupabase(id: string): Promise<boolean
 
 export async function ensureDefaultTestimonials(): Promise<Testimonial[]> {
   const remote = await fetchTestimonialsFromSupabase();
-  const seedKey = 'almaali_testimonial_seed_v3';
+  const seedKey = 'almaali_testimonial_seed_v4';
   let alreadySeeded = false;
   try {
     alreadySeeded = localStorage.getItem(seedKey) === '1';
